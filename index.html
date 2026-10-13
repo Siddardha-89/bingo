@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BINGO - Play Together Online Multiplayer</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
+</head>
+<body>
+
+  <!-- =====================================================================
+       1. INTRO SCREEN (2 SECONDS)
+       ===================================================================== -->
+  <div id="screen-intro">
+    <!-- Floating 3D Bingo Balls matching image -->
+    <div class="intro-particles">
+      <div class="bingo-ball ball-7">7</div>
+      <div class="bingo-ball ball-23">23</div>
+      <div class="bingo-ball ball-14">14</div>
+      <div class="bingo-ball ball-32">32</div>
+      <div class="bingo-ball ball-9">9</div>
+    </div>
+
+    <div class="intro-content">
+      <div class="intro-crown">
+        <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" class="crown-svg">
+          <defs>
+            <linearGradient id="crownGold" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#FFE680"/>
+              <stop offset="30%" stop-color="#FFD700"/>
+              <stop offset="65%" stop-color="#C8960C"/>
+              <stop offset="100%" stop-color="#8B6914"/>
+            </linearGradient>
+            <linearGradient id="crownShine" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="rgba(255,255,255,0)" />
+              <stop offset="40%" stop-color="rgba(255,255,255,0.35)" />
+              <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+            </linearGradient>
+            <linearGradient id="gemRed" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff6b6b"/>
+              <stop offset="50%" stop-color="#c0392b"/>
+              <stop offset="100%" stop-color="#7b0000"/>
+            </linearGradient>
+            <linearGradient id="gemBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#74b9ff"/>
+              <stop offset="50%" stop-color="#0984e3"/>
+              <stop offset="100%" stop-color="#044080"/>
+            </linearGradient>
+            <filter id="crownShadow" x="-20%" y="-20%" width="140%" height="160%">
+              <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.5)"/>
+            </filter>
+          </defs>
+          <!-- Crown base band -->
+          <rect x="10" y="58" width="100" height="14" rx="3" fill="url(#crownGold)" filter="url(#crownShadow)"/>
+          <rect x="10" y="58" width="100" height="5" rx="2" fill="url(#crownShine)" opacity="0.6"/>
+          <!-- Crown body -->
+          <polygon points="10,60 10,20 35,42 60,5 85,42 110,20 110,60" fill="url(#crownGold)" filter="url(#crownShadow)"/>
+          <!-- Crown inner shadow for depth -->
+          <polygon points="10,60 10,30 35,48 60,16 85,48 110,30 110,60" fill="url(#crownShine)" opacity="0.25"/>
+          <!-- Crown outline -->
+          <polygon points="10,60 10,20 35,42 60,5 85,42 110,20 110,60" fill="none" stroke="#A0720A" stroke-width="1.2"/>
+          <!-- Base outline -->
+          <rect x="10" y="58" width="100" height="14" rx="3" fill="none" stroke="#A0720A" stroke-width="1"/>
+          <!-- Center gem (red) -->
+          <polygon points="60,22 65,32 60,38 55,32" fill="url(#gemRed)"/>
+          <polygon points="60,22 65,32 60,26" fill="rgba(255,150,150,0.5)"/>
+          <!-- Left gem (blue) -->
+          <polygon points="25,38 29,46 25,50 21,46" fill="url(#gemBlue)"/>
+          <polygon points="25,38 29,46 25,42" fill="rgba(150,200,255,0.5)"/>
+          <!-- Right gem (blue) -->
+          <polygon points="95,38 99,46 95,50 91,46" fill="url(#gemBlue)"/>
+          <polygon points="95,38 99,46 95,42" fill="rgba(150,200,255,0.5)"/>
+          <!-- Base gems row -->
+          <circle cx="35" cy="65" r="4" fill="url(#gemRed)"/>
+          <circle cx="35" cy="65" r="2" fill="rgba(255,180,180,0.6)"/>
+          <circle cx="60" cy="65" r="4" fill="url(#gemBlue)"/>
+          <circle cx="60" cy="65" r="2" fill="rgba(180,220,255,0.6)"/>
+          <circle cx="85" cy="65" r="4" fill="url(#gemRed)"/>
+          <circle cx="85" cy="65" r="2" fill="rgba(255,180,180,0.6)"/>
+        </svg>
+      </div>
+      <h1 class="intro-title">BINGO</h1>
+      <p class="intro-tagline">Play • Connect • Win</p>
+
+      <div class="intro-progress-container">
+        <div class="intro-progress-bar">
+          <div class="intro-progress-fill" id="intro-fill"></div>
+        </div>
+        <span class="intro-time">2s</span>
+      </div>
+
+      <button type="button" class="skip-intro-btn" id="btn-skip-intro">Skip Intro ➔</button>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MAIN WRAPPER & HEADER
+       ===================================================================== -->
+  <div class="app-container">
+
+    <!-- Site Header -->
+    <header class="site-header">
+      <div class="brand-logo" id="logo-home-btn" title="Back to Home">
+        <span class="brand-crown">👑</span>
+        <span class="brand-name">BINGO</span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Sound FX Toggle -->
+        <button type="button" class="icon-btn" id="btn-sound-toggle" title="Toggle Sound FX">🔊</button>
+        <!-- Dark Mode Toggle (Screen 15) -->
+        <button type="button" class="icon-btn" id="btn-theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
+        <!-- User Login / Profile -->
+        <button type="button" class="login-btn" id="btn-login-modal">
+          <span>👤</span>
+          <span id="header-user-name">Siddardha</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Views -->
+    <main class="main-content">
+
+      <!-- =====================================================================
+           2. HOME PAGE (Screen 2)
+           ===================================================================== -->
+      <section id="view-home" class="view-section active">
+        <div class="hero-card">
+          <h2 class="hero-title">Welcome to Bingo!</h2>
+          <p class="hero-subtitle">Play with your friends, have fun and be the first to get BINGO!</p>
+          <div class="hero-actions">
+            <button type="button" class="btn btn-primary" id="btn-goto-create">
+              <span class="btn-icon">＋</span> Create Room
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-goto-join">
+              <span class="btn-icon">👥</span> Join Room
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Start / Feature Cards -->
+        <div class="features-grid">
+          <div class="feature-card" id="btn-modal-rules">
+            <div class="feature-icon-wrapper">❓</div>
+            <div class="feature-label">How to Play</div>
+          </div>
+          <div class="feature-card" id="btn-modal-boards">
+            <div class="feature-icon-wrapper">📐</div>
+            <div class="feature-label">Board Sizes</div>
+          </div>
+          <div class="feature-card" id="btn-modal-multiplayer">
+            <div class="feature-icon-wrapper">🎮</div>
+            <div class="feature-label">Multiplayer</div>
+          </div>
+        </div>
+
+        <!-- Legend Pill -->
+        <div class="legend-pill">
+          <div class="legend-item">
+            <span class="legend-dot green"></span>
+            <span>Green = You selected</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot yellow"></span>
+            <span>Yellow = Friend selected</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           3. CREATE ROOM SCREEN (Screen 3)
+           ===================================================================== -->
+      <section id="view-create" class="view-section">
+        <div class="view-top-bar">
+          <button type="button" class="back-btn btn-back-home" title="Go back">←</button>
+          <h2 class="view-title">Create Room</h2>
+          <div class="top-bar-spacer"></div>
+        </div>
+
+        <div class="form-card">
+          <!-- 1. Enter Your Name -->
+          <div class="form-group">
+            <label class="form-label" for="input-creator-name">1. Enter Your Name</label>
+            <input type="text" id="input-creator-name" class="form-input" placeholder="Your name" value="Siddardha">
+          </div>
+
+          <!-- 2. Select Board Size -->
+          <div class="form-group">
+            <label class="form-label">2. Select Board Size</label>
+            <div class="board-size-options">
+              <div class="board-option-card selected" data-size="5" id="opt-board-5">
+                <span class="board-option-icon">▦</span>
+                <span class="board-option-title">5 x 5</span>
+                <span class="board-option-sub">(1–25 numbers)</span>
+              </div>
+              <div class="board-option-card" data-size="7" id="opt-board-7">
+                <span class="board-option-icon">▤</span>
+                <span class="board-option-title">7 x 7</span>
+                <span class="board-option-sub">(1–49 numbers)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Select Number of Players -->
+          <div class="form-group">
+            <label class="form-label">3. Select Number of Players</label>
+            <div class="player-count-group">
+              <button type="button" class="player-count-btn selected" data-count="2">2</button>
+              <button type="button" class="player-count-btn" data-count="3">3</button>
+              <button type="button" class="player-count-btn" data-count="4">4</button>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-primary btn-full-width" id="btn-submit-create">
+            <span class="btn-icon">＋</span> Create Room
+          </button>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           4. ROOM CREATED / SHARE LINK (Screen 4)
+           ===================================================================== -->
+      <section id="view-room-created" class="view-section">
+        <div class="view-top-bar">
+          <button type="button" class="back-btn btn-back-home" title="Go back">←</button>
+          <h2 class="view-title">Share Room</h2>
+          <div class="top-bar-spacer"></div>
+        </div>
+
+        <div class="created-card">
+          <div class="success-badge">✓</div>
+          <h2 class="created-title">Room Created!</h2>
+          <p class="created-subtitle">Share this link with your friends to join.</p>
+
+          <!-- Room Code Field -->
+          <div class="share-field-group">
+            <div class="share-field-label">Room Code</div>
+            <div class="copy-box">
+              <span class="copy-code-text" id="display-room-code">B7K9Q2</span>
+              <button type="button" class="copy-action-btn" id="btn-copy-code" title="Copy Room Code">📋</button>
+            </div>
+          </div>
+
+          <!-- Invite Link Field -->
+          <div class="share-field-group">
+            <div class="share-field-label">Invite Link</div>
+            <div class="copy-box">
+              <span class="copy-link-text" id="display-room-url">https://bingo.app/room/B7K9Q2</span>
+              <button type="button" class="copy-action-btn" id="btn-copy-url" title="Copy Invite Link">📋</button>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-primary btn-full-width mt-1" id="btn-copy-link-main">
+            <span>📋</span> Copy Link
+          </button>
+
+          <!-- Social Share Buttons -->
+          <div class="share-social-wrapper">
+            <div class="share-social-title">Share via</div>
+            <div class="share-social-icons">
+
+              <!-- WhatsApp -->
+              <button type="button" class="social-share-btn whatsapp" id="share-whatsapp" title="WhatsApp">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                <span class="social-label">WhatsApp</span>
+              </button>
+
+              <!-- Telegram -->
+              <button type="button" class="social-share-btn telegram" id="share-telegram" title="Telegram">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                </svg>
+                <span class="social-label">Telegram</span>
+              </button>
+
+              <!-- Instagram -->
+              <button type="button" class="social-share-btn instagram" id="share-instagram" title="Instagram">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+                </svg>
+                <span class="social-label">Instagram</span>
+              </button>
+
+              <!-- More / Native Share -->
+              <button type="button" class="social-share-btn more" id="share-native" title="More Options">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <span class="social-label">More</span>
+              </button>
+
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-secondary btn-full-width" id="btn-enter-waiting">
+            Enter Waiting Room ➔
+          </button>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           5. JOIN ROOM (Screen 5)
+           ===================================================================== -->
+      <section id="view-join" class="view-section">
+        <div class="view-top-bar">
+          <button type="button" class="back-btn btn-back-home" title="Go back">←</button>
+          <h2 class="view-title">Join Room</h2>
+          <div class="top-bar-spacer"></div>
+        </div>
+
+        <div class="join-card">
+          <!-- Enter Player Name -->
+          <div class="form-group">
+            <label class="form-label" for="input-join-name">Your Name</label>
+            <input type="text" id="input-join-name" class="form-input" placeholder="Enter your name" value="Player">
+          </div>
+
+          <!-- Room Code Input -->
+          <div class="form-group">
+            <label class="form-label" for="input-join-code">Room Code</label>
+            <div class="search-input-wrapper">
+              <input type="text" id="input-join-code" class="form-input form-input-code" placeholder="Enter room code (e.g. B7K9Q2)">
+              <span class="search-icon">🔍</span>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-primary btn-full-width" id="btn-submit-join">
+            Join
+          </button>
+
+          <div class="divider-or">OR</div>
+
+          <!-- Join via Link preview -->
+          <div class="form-group">
+            <label class="form-label">Join via link</label>
+            <div class="join-link-box" id="btn-paste-link">
+              <span class="join-link-label">🔗 Paste or Open Invite Link</span>
+              <span class="join-link-arrow">➔</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           6. WAITING ROOM (PLAYERS) (Screen 6)
+           ===================================================================== -->
+      <section id="view-waiting" class="view-section">
+        <div class="view-top-bar">
+          <button type="button" class="back-btn btn-back-home" title="Go back">←</button>
+          <h2 class="view-title">Waiting Room</h2>
+          <div class="top-bar-spacer"></div>
+        </div>
+
+        <!-- Room Header Badge -->
+        <div class="room-header-badge">
+          <div class="room-badge-code">
+            <span>Room</span>
+            <span id="waiting-room-code">B7K9Q2</span>
+            <button type="button" class="copy-action-btn" id="btn-copy-waiting-code" title="Copy code">📋</button>
+          </div>
+          <div class="room-badge-count">
+            <span>👥</span>
+            <span id="waiting-player-count">4/4</span>
+          </div>
+        </div>
+
+        <div class="players-list-title">Players in Room</div>
+        <div class="players-list" id="waiting-players-container">
+          <!-- Dynamically populated only when players actually join -->
+        </div>
+
+        <!-- Action / Status -->
+        <div id="host-start-container" class="waiting-actions-container">
+          <button type="button" class="btn btn-primary btn-full-width" id="btn-start-game">
+            🎮 Start Game
+          </button>
+          <div class="waiting-status-box" id="waiting-status-text">
+            <span>⏳</span> Waiting for players to join...
+          </div>
+          <button type="button" class="btn btn-secondary btn-full-width" id="btn-add-test-bot">
+            🤖 Add Bot (for solo testing)
+          </button>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           7, 8, 9, 10. GAME SCREEN (5x5 & 7x7)
+           ===================================================================== -->
+      <section id="view-game" class="view-section">
+
+        <!-- Header status info bar -->
+        <div class="game-header-bar">
+          <div class="game-header-meta">
+            <button type="button" class="back-btn back-btn-compact" id="btn-leave-game" title="Leave Game">✕</button>
+            <span class="game-room-tag">
+              Room <span id="game-room-code">B7K9Q2</span>
+            </span>
+          </div>
+
+          <div class="game-badges-group">
+            <span class="meta-badge" id="game-size-badge">5 × 5</span>
+            <span class="meta-badge" id="game-players-badge">👥 4/4</span>
+          </div>
+        </div>
+
+        <!-- Widescreen Responsive Layout (Expands beautifully on laptop & desktop) -->
+        <div class="game-widescreen-layout">
+
+          <!-- Left Column: Turn, Numbers, and Bingo Board -->
+          <div class="game-board-column">
+            <!-- Turn Announcement Banner (Screens 9 & 10) -->
+            <div class="turn-banner your-turn" id="turn-announcement-banner">
+              <span id="turn-icon">🟢</span>
+              <span id="turn-text">Your Turn! Pick a number on the board.</span>
+            </div>
+
+            <!-- Next Number Ball & BINGO Letter Badges -->
+            <div class="game-info-row">
+              <!-- Next Number Circle Widget -->
+              <div class="next-number-widget">
+                <div class="next-number-label">Next<br>Number</div>
+                <div class="next-number-ball" id="active-number-ball">12</div>
+              </div>
+
+              <!-- BINGO Progress Letters Track -->
+              <div class="bingo-letters-widget cursor-pointer" id="btn-quick-progress" title="Click to view line progress">
+                <div class="bingo-letters-label">
+                  <span>BINGO Progress</span>
+                  <span id="header-progress-count" class="text-teal">0/5</span>
+                </div>
+                <div class="bingo-letters-track">
+                  <div class="bingo-letter-chip" id="chip-B">B</div>
+                  <div class="bingo-letter-chip" id="chip-I">I</div>
+                  <div class="bingo-letter-chip" id="chip-N">N</div>
+                  <div class="bingo-letter-chip" id="chip-G">G</div>
+                  <div class="bingo-letter-chip" id="chip-O">O</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bingo Board Grid Container -->
+            <div class="board-container">
+              <div class="bingo-grid grid-5x5" id="bingo-grid">
+                <!-- Dynamically populated numbers -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Live Number History, 15 Crazy Taunts & Emoji Reactions -->
+          <div class="game-side-column">
+            <!-- Live Number History on Game Screen (Screens 7 & 8) -->
+            <div class="game-history-card">
+              <div class="game-history-header">
+                <span class="game-history-title">Number History</span>
+                <span class="game-history-counter" id="live-history-counter">0 picked</span>
+              </div>
+              <div class="game-history-list" id="in-game-history-list">
+                <!-- Dynamically populated when a number is selected -->
+              </div>
+            </div>
+
+            <!-- Bottom Game Action Tabs -->
+            <div class="game-bottom-actions">
+              <button type="button" class="game-sub-btn" id="btn-open-history">
+                <span>📜</span> Live History (<span id="history-badge-count">0</span>)
+              </button>
+              <button type="button" class="game-sub-btn" id="btn-open-progress">
+                <span>📊</span> Lines (<span id="lines-badge-count">0/5</span>)
+              </button>
+            </div>
+
+            <!-- Emoji Reaction Bar -->
+            <div class="reaction-bar" id="reaction-bar">
+              <div class="reaction-bar-label">React</div>
+              <div class="reaction-btns">
+                <button type="button" class="reaction-btn" data-emoji="😂" title="Laughing">😂</button>
+                <button type="button" class="reaction-btn" data-emoji="😢" title="Sad">😢</button>
+                <button type="button" class="reaction-btn" data-emoji="😭" title="Crying">😭</button>
+                <button type="button" class="reaction-btn" data-emoji="😮" title="Wow">😮</button>
+                <button type="button" class="reaction-btn" data-emoji="😠" title="Angry">😠</button>
+                <button type="button" class="reaction-btn" data-emoji="🔥" title="Fire">🔥</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- =====================================================================
+           11. LIVE NUMBER HISTORY (Screen 11)
+           ===================================================================== -->
+      <section id="view-history" class="view-section">
+        <div class="view-top-bar">
+          <button type="button" class="back-btn btn-back-game" title="Back to game">←</button>
+          <h2 class="view-title">Number History</h2>
+          <div class="top-bar-spacer"></div>
+        </div>
+
+        <div class="history-card">
+          <!-- Filter Tabs: [All] [You] [Friends] -->
+          <div class="filter-tabs">
+            <button type="button" class="filter-tab active" data-filter="all">All</button>
+            <button type="button" class="filter-tab" data-filter="you">You</button>
+            <button type="button" class="filter-tab" data-filter="friends">Friends</button>
+          </div>
+
+          <div class="history-list" id="history-items-container">
+            <!-- Items injected by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           12. BINGO PROGRESS VIEW (Screen 12)
+           ===================================================================== -->
+      <section id="view-progress" class="view-section">
+        <div class="view-top-bar">
+          <button type="button" class="back-btn btn-back-game" title="Back to game">←</button>
+          <h2 class="view-title">BINGO Progress</h2>
+          <div class="top-bar-spacer"></div>
+        </div>
+
+        <div class="progress-card">
+          <!-- Large B-I-N-G-O Balls -->
+          <div class="bingo-balls-row">
+            <div class="bingo-ball-large" id="ball-B">B</div>
+            <div class="bingo-ball-large" id="ball-I">I</div>
+            <div class="bingo-ball-large" id="ball-N">N</div>
+            <div class="bingo-ball-large" id="ball-G">G</div>
+            <div class="bingo-ball-large" id="ball-O">O</div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="progress-stats">
+            <span class="progress-label" id="progress-lines-text">0/5 lines completed</span>
+            <span class="progress-percent" id="progress-percent-text">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="lines-bar-fill"></div>
+          </div>
+
+          <!-- Completed Lines Checklist -->
+          <div class="completed-lines-title">Completed Lines</div>
+          <div class="completed-lines-list" id="completed-lines-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- =====================================================================
+         13. WINNER SCREEN MODAL (Screen 13)
+         ===================================================================== -->
+    <div id="screen-winner">
+      <canvas id="confetti-canvas"></canvas>
+      <div class="winner-card">
+        <span class="winner-trophy">🏆</span>
+        <div class="winner-label">Winner</div>
+        <h2 class="winner-name" id="winner-player-name">Siddardha Won!</h2>
+        <div class="winner-actions">
+          <button type="button" class="btn btn-primary btn-full-width" id="btn-play-again">
+            🔄 Play Again
+          </button>
+          <button type="button" class="btn btn-secondary btn-full-width" id="btn-winner-home">
+            🏠 Back to Home
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         TOAST NOTIFICATION (Screens 9 & 10)
+         ===================================================================== -->
+    <div class="toast-notification" id="toast-notify">
+      <span id="toast-icon">🟢</span>
+      <span id="toast-message">Siddardha (You) selected 15</span>
+    </div>
+
+    </div>
+
+  <!-- =====================================================================
+       INFORMATION MODALS (Rules, Board Sizes, Multiplayer)
+       ===================================================================== -->
+  <div class="modal-overlay" id="modal-info">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="info-modal-title">How to Play</h3>
+        <button type="button" class="modal-close" id="modal-close-btn">✕</button>
+      </div>
+      <div class="modal-content" id="info-modal-content">
+        <!-- Content injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
