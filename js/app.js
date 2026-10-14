@@ -17,12 +17,18 @@
     sessionStorage.setItem('bingo_player_id', myPlayerId);
   }
 
+  // Clear any legacy demo name from previous tests
+  if (localStorage.getItem('bingo_user_name') === 'Siddardha' || localStorage.getItem('bingo_user_name') === 'Player') {
+    localStorage.removeItem('bingo_user_name');
+  }
+
   // ----------------------------------------------------------------------------
   // 1. STATE MANAGEMENT
   // ----------------------------------------------------------------------------
   const state = {
     currentScreen: 'intro',
-    playerName: localStorage.getItem('bingo_user_name') || 'Siddardha',
+    playerName: localStorage.getItem('bingo_user_name') || 'USER',
+    playerAvatar: localStorage.getItem('bingo_user_avatar') || '🥷',
     roomCode: 'B7K9Q2',
     boardSize: 5, // 5 or 7
     playerLimit: 2, // Default 2, or 3, 4
@@ -39,18 +45,113 @@
     markedCells: {}, // { index: { number, selectedBy: 'you'|'friend', player: string } }
     selectionsHistory: [], // Array of moves
     completedLines: [], // e.g. ['row-0', 'col-2', ...]
+    botBoardNumbers: [], // Robot's distinct board numbers
+    botMarkedCells: {}, // Robot's marked cells
+    botCompletedLines: [], // Robot's completed lines
+    activeBoardView: 'my', // 'my' | 'bot' | 'dual'
     gameActive: false,
     winner: null,
     historyFilter: 'all'
   };
 
-  // BroadcastChannel for cross-tab real-time multiplayer synchronization
+  // ----------------------------------------------------------------------------
+  // REAL-TIME MULTIPLAYER PROTOCOL (MQTT over WebSockets + BroadcastChannel)
+  // ----------------------------------------------------------------------------
   let channel = null;
   try {
     channel = new BroadcastChannel('bingo_realtime_channel');
     channel.onmessage = (event) => handleIncomingBroadcast(event.data);
   } catch (e) {
     console.warn('BroadcastChannel not supported in this environment');
+  }
+
+  // Cross-device MQTT WebSocket client for connecting Mobile <-> Laptop
+  let mqttClient = null;
+  let currentSubscribedTopic = null;
+  let joinHeartbeatTimer = null;
+
+  const BROKERS = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt'
+  ];
+  let currentBrokerIdx = 0;
+
+  function updateNetStatus(status, text) {
+    const pill = document.getElementById('net-status-pill');
+    const textEl = document.getElementById('net-status-text');
+    if (!pill || !textEl) return;
+    pill.className = `net-status-pill ${status}`;
+    textEl.textContent = text;
+  }
+
+  function initMqtt() {
+    if (typeof mqtt === 'undefined') {
+      console.warn('MQTT library not loaded. Running in local mode.');
+      updateNetStatus('connecting', 'Local Only');
+      return;
+    }
+
+    try {
+      const brokerUrl = BROKERS[currentBrokerIdx];
+      updateNetStatus('connecting', 'Connecting...');
+
+      const clientId = 'bingo_' + Math.random().toString(16).substring(2, 10);
+      mqttClient = mqtt.connect(brokerUrl, {
+        clientId: clientId,
+        clean: true,
+        connectTimeout: 7000,
+        reconnectPeriod: 3000,
+        keepalive: 45
+      });
+
+      mqttClient.on('connect', () => {
+        console.log('Connected to realtime multiplayer broker:', brokerUrl);
+        updateNetStatus('online', 'Live Sync');
+        if (state.roomCode) {
+          subscribeToRoom(state.roomCode);
+        }
+      });
+
+      mqttClient.on('error', (err) => {
+        console.warn('MQTT connection error, trying alternate broker:', err);
+        currentBrokerIdx = (currentBrokerIdx + 1) % BROKERS.length;
+      });
+
+      mqttClient.on('close', () => {
+        updateNetStatus('connecting', 'Reconnecting...');
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        try {
+          const payload = JSON.parse(message.toString());
+          handleIncomingBroadcast(payload);
+        } catch (e) {
+          console.error('Error parsing broadcast payload:', e);
+        }
+      });
+    } catch (e) {
+      console.warn('Error initializing MQTT client:', e);
+      updateNetStatus('connecting', 'Offline');
+    }
+  }
+
+  function subscribeToRoom(roomCode) {
+    if (!mqttClient || !roomCode) return;
+    const cleanCode = roomCode.trim().toUpperCase();
+    const newTopic = `bingo_rooms_live/${cleanCode}`;
+
+    if (currentSubscribedTopic && currentSubscribedTopic !== newTopic) {
+      try { mqttClient.unsubscribe(currentSubscribedTopic); } catch (e) {}
+    }
+
+    currentSubscribedTopic = newTopic;
+    if (mqttClient.connected) {
+      mqttClient.subscribe(newTopic, { qos: 0 }, (err) => {
+        if (!err) {
+          console.log('Subscribed to room topic:', newTopic);
+        }
+      });
+    }
   }
 
   // ----------------------------------------------------------------------------
@@ -189,6 +290,7 @@
     btnThemeToggle: document.getElementById('btn-theme-toggle'),
     btnLoginModal: document.getElementById('btn-login-modal'),
     headerUserName: document.getElementById('header-user-name'),
+    headerUserAvatar: document.getElementById('header-user-avatar'),
 
     // Views
     viewHome: document.getElementById('view-home'),
@@ -228,11 +330,16 @@
     shareTelegram: document.getElementById('share-telegram'),
     shareInstagram: document.getElementById('share-instagram'),
     shareNative: document.getElementById('share-native'),
+    btnShareScanner: document.getElementById('btn-share-scanner'),
 
-    // Join Elements
+    // Join & Scanner Elements
     inputJoinName: document.getElementById('input-join-name'),
     inputJoinCode: document.getElementById('input-join-code'),
     btnPasteLink: document.getElementById('btn-paste-link'),
+    btnOpenScanner: document.getElementById('btn-open-scanner'),
+    btnCloseScanner: document.getElementById('btn-close-scanner'),
+    btnHomeQuickScan: document.getElementById('btn-home-quick-scan'),
+    qrScannerCard: document.getElementById('qr-scanner-card'),
 
     // Waiting Room Elements
     waitingRoomCode: document.getElementById('waiting-room-code'),
@@ -241,6 +348,15 @@
     waitingStatusText: document.getElementById('waiting-status-text'),
     btnAddTestBot: document.getElementById('btn-add-test-bot'),
     btnCopyWaitingCode: document.getElementById('btn-copy-waiting-code'),
+    myProfileStrip: document.getElementById('btn-edit-my-name'),
+    waitingMyDisplayName: document.getElementById('waiting-my-display-name'),
+    myProfileAvatarLetter: document.getElementById('my-profile-avatar-letter'),
+    btnTriggerNameChange: document.getElementById('btn-trigger-name-change'),
+    modalChangeName: document.getElementById('modal-change-name'),
+    btnCloseNameModal: document.getElementById('btn-close-name-modal'),
+    btnCancelNameModal: document.getElementById('btn-cancel-name-modal'),
+    btnSaveNameModal: document.getElementById('btn-save-name-modal'),
+    inputModalPlayerName: document.getElementById('input-modal-player-name'),
 
     // Game Elements
     gameRoomCode: document.getElementById('game-room-code'),
@@ -259,6 +375,23 @@
       O: document.getElementById('chip-O')
     },
     bingoGrid: document.getElementById('bingo-grid'),
+    botGameBoardTabs: document.getElementById('bot-game-board-tabs'),
+    tabMyBoard: document.getElementById('tab-my-board'),
+    tabBotBoard: document.getElementById('tab-bot-board'),
+    btnToggleDualView: document.getElementById('btn-toggle-dual-view'),
+    playerBoardContainer: document.getElementById('player-board-container'),
+    botBoardContainer: document.getElementById('bot-board-container'),
+    botBingoGrid: document.getElementById('bot-bingo-grid'),
+    tabMyProgress: document.getElementById('tab-my-progress'),
+    tabBotProgress: document.getElementById('tab-bot-progress'),
+    playerBoardLines: document.getElementById('player-board-lines'),
+    botChips: {
+      B: document.getElementById('bot-chip-B'),
+      I: document.getElementById('bot-chip-I'),
+      N: document.getElementById('bot-chip-N'),
+      G: document.getElementById('bot-chip-G'),
+      O: document.getElementById('bot-chip-O')
+    },
     btnOpenHistory: document.getElementById('btn-open-history'),
     btnOpenProgress: document.getElementById('btn-open-progress'),
     btnQuickProgress: document.getElementById('btn-quick-progress'),
@@ -282,8 +415,15 @@
     linesBarFill: document.getElementById('lines-bar-fill'),
     completedLinesList: document.getElementById('completed-lines-list'),
 
-    // Winner Screen
+    // Winner Screen & Victory Card
     winnerPlayerName: document.getElementById('winner-player-name'),
+    winnerAvatarDisplay: document.getElementById('winner-avatar-display'),
+    winnerStatLines: document.getElementById('winner-stat-lines'),
+    winnerStatRoom: document.getElementById('winner-stat-room'),
+    winnerStatGrid: document.getElementById('winner-stat-grid'),
+    btnShareWhatsappWin: document.getElementById('btn-share-whatsapp-win'),
+    btnDownloadWinCard: document.getElementById('btn-download-win-card'),
+    btnShareNativeWin: document.getElementById('btn-share-native-win'),
     btnPlayAgain: document.getElementById('btn-play-again'),
     btnWinnerHome: document.getElementById('btn-winner-home'),
     confettiCanvas: document.getElementById('confetti-canvas'),
@@ -292,6 +432,17 @@
     toast: document.getElementById('toast-notify'),
     toastIcon: document.getElementById('toast-icon'),
     toastMessage: document.getElementById('toast-message'),
+
+    // Profile & Avatar Modal
+    modalChangeName: document.getElementById('modal-change-name'),
+    inputModalPlayerName: document.getElementById('input-modal-player-name'),
+    btnCloseNameModal: document.getElementById('btn-close-name-modal'),
+    btnCancelNameModal: document.getElementById('btn-cancel-name-modal'),
+    btnSaveNameModal: document.getElementById('btn-save-name-modal'),
+    avatarPreviewDisplay: document.getElementById('avatar-preview-display'),
+    avatarPreviewName: document.getElementById('avatar-preview-name'),
+    avatarPreviewTag: document.getElementById('avatar-preview-tag'),
+    avatarCards: document.querySelectorAll('.avatar-card-opt'),
 
     // Modal
     modalInfo: document.getElementById('modal-info'),
@@ -323,6 +474,11 @@
 
   function showScreen(screenKey) {
     state.currentScreen = screenKey;
+
+    // Automatically stop QR camera scanner if navigating to any other screen
+    if (screenKey !== 'join') {
+      stopQrScanner();
+    }
 
     // Handle Intro
     if (screenKey === 'intro') {
@@ -369,10 +525,13 @@
 
     if (roomParam) {
       el.screenIntro.classList.add('hidden');
-      state.roomCode = roomParam.trim().toUpperCase();
-      el.inputJoinCode.value = state.roomCode;
-      showScreen('join');
-      showToast(`Invited to Room ${state.roomCode}! Enter your name to join.`, 'toast-green');
+      const cleanRoom = roomParam.trim().toUpperCase();
+      state.roomCode = cleanRoom;
+      el.inputJoinCode.value = cleanRoom;
+      subscribeToRoom(cleanRoom);
+
+      // Instant direct join into game waiting room upon scanning QR or opening invite link!
+      executeAutoJoin(cleanRoom);
       return;
     }
 
@@ -380,13 +539,26 @@
       if (state.currentScreen === 'intro') {
         showScreen('home');
       }
-    }, 2200);
+    }, 2800);
 
-    el.btnSkipIntro.addEventListener('click', () => {
-      clearTimeout(timer);
-      Sound.click();
-      showScreen('home');
-    });
+    if (el.btnSkipIntro) {
+      el.btnSkipIntro.addEventListener('click', () => {
+        clearTimeout(timer);
+        Sound.click();
+        showScreen('home');
+      });
+    }
+
+    // Tapping anywhere on the intro screen smoothly continues to home
+    if (el.screenIntro) {
+      el.screenIntro.addEventListener('click', () => {
+        if (state.currentScreen === 'intro') {
+          clearTimeout(timer);
+          Sound.click();
+          showScreen('home');
+        }
+      });
+    }
   }
 
   // ----------------------------------------------------------------------------
@@ -402,12 +574,40 @@
   }
 
   function getInviteUrl(code) {
-    let origin = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'http://localhost:3000';
-    // If hosting locally on laptop, provide the laptop's Wi-Fi network IP so phones can connect directly!
-    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-      origin = 'http://192.168.29.17:3000';
+    const isFile = window.location.protocol === 'file:';
+    const port = window.location.port ? `:${window.location.port}` : '';
+    let origin = window.location.origin;
+
+    // Handle localhost, local files, and deployed origins
+    if (isFile || !origin || origin === 'null') {
+      // Opened as local file
+      origin = `http://192.168.29.17:5501`;
+    } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      // Local server on laptop: substitute Wi-Fi IP and keep actual port
+      origin = `http://192.168.29.17${port || ':5501'}`;
     }
     return `${origin}/?room=${code}`;
+  }
+
+  function renderRoomQrCode(url) {
+    const qrContainer = document.getElementById('room-qr-code');
+    if (!qrContainer) return;
+    qrContainer.innerHTML = '';
+
+    if (typeof QRCode !== 'undefined') {
+      try {
+        new QRCode(qrContainer, {
+          text: url,
+          width: 140,
+          height: 140,
+          colorDark: '#581876',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch (e) {
+        console.warn('QR code generation failed:', e);
+      }
+    }
   }
 
   function updateRoomDetails() {
@@ -419,10 +619,24 @@
     el.waitingRoomCode.textContent = code;
     el.gameRoomCode.textContent = code;
     el.headerUserName.textContent = state.playerName;
+    if (el.headerUserAvatar) el.headerUserAvatar.textContent = state.playerAvatar || '🥷';
 
     el.gameSizeBadge.textContent = `${state.boardSize} × ${state.boardSize}`;
     el.gamePlayersBadge.textContent = `👥 ${state.players.length}/${state.playerLimit}`;
     el.waitingPlayerCount.textContent = `${state.players.length}/${state.playerLimit}`;
+
+    // Render QR Code for instant Mobile camera joining
+    renderRoomQrCode(url);
+
+    // Show notice if user opened directly via file://
+    const warningEl = document.getElementById('file-protocol-warning');
+    if (warningEl) {
+      if (window.location.protocol === 'file:') {
+        warningEl.classList.remove('hidden');
+      } else {
+        warningEl.classList.add('hidden');
+      }
+    }
   }
 
   function getAvatarClass(index) {
@@ -437,6 +651,14 @@
     updateRoomDetails();
     el.waitingPlayersContainer.innerHTML = '';
 
+    // Update player's own profile strip in waiting room
+    if (el.waitingMyDisplayName) {
+      el.waitingMyDisplayName.textContent = state.playerName;
+    }
+    if (el.myProfileAvatarLetter) {
+      el.myProfileAvatarLetter.textContent = state.playerAvatar || '🥷';
+    }
+
     // 1. Render actual joined players
     state.players.forEach((p, index) => {
       const isMe = p.id === state.myPlayerId;
@@ -445,19 +667,40 @@
 
       const avatarLetter = (p.name[0] || 'U').toUpperCase();
       const avatarColorClass = p.avatarClass || getAvatarClass(index);
+      const displayAvatar = p.avatarEmoji || avatarLetter;
 
       playerItem.innerHTML = `
         <div class="player-info">
-          <div class="player-avatar ${avatarColorClass}">${avatarLetter}</div>
+          <div class="player-avatar ${avatarColorClass}">${displayAvatar}</div>
           <div class="player-name">
             <span>${p.name}${isMe ? ' (You)' : ''}</span>
             ${p.isHost ? '<span>👑</span>' : ''}
           </div>
         </div>
-        <span class="player-status-tag ${p.isHost ? 'host' : 'ready'}">
-          ${p.isHost ? 'Host' : 'Ready'}
-        </span>
+        <div class="player-status-wrap">
+          ${isMe ? `
+            <button type="button" class="btn-edit-inline-name" title="Change your name">
+              ✏️ Edit
+            </button>
+          ` : `
+            <span class="player-status-tag ${p.isHost ? 'host' : 'ready'}">
+              ${p.isHost ? 'Host' : 'Ready'}
+            </span>
+          `}
+        </div>
       `;
+
+      if (isMe) {
+        const editBtn = playerItem.querySelector('.btn-edit-inline-name');
+        if (editBtn) {
+          editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            Sound.click();
+            openNameModal();
+          });
+        }
+      }
+
       el.waitingPlayersContainer.appendChild(playerItem);
     });
 
@@ -537,8 +780,85 @@
     updateHistoryUI();
     updateTurnDisplay();
 
+    // Check if Robot is in the game and setup Robot's separate table
+    const hasBot = state.players.some(p => p.isBot);
+    if (hasBot) {
+      if (el.botGameBoardTabs) el.botGameBoardTabs.classList.remove('hidden');
+      setupBotBoard();
+      switchBoardView('my');
+    } else {
+      if (el.botGameBoardTabs) el.botGameBoardTabs.classList.add('hidden');
+      if (el.botBoardContainer) el.botBoardContainer.classList.add('hidden');
+      if (el.playerBoardContainer) el.playerBoardContainer.classList.remove('hidden');
+      if (el.viewGame) el.viewGame.classList.remove('dual-boards-active');
+    }
+
     // Reset next number circle
     el.activeNumberBall.textContent = '--';
+  }
+
+  function setupBotBoard() {
+    const totalCells = state.boardSize * state.boardSize;
+    state.botMarkedCells = {};
+    state.botCompletedLines = [];
+
+    // Distinct randomized numbers for Robot's own board
+    const botPool = [];
+    for (let i = 1; i <= totalCells; i++) botPool.push(i);
+    for (let i = botPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [botPool[i], botPool[j]] = [botPool[j], botPool[i]];
+    }
+    state.botBoardNumbers = botPool;
+    renderBotBoard();
+    updateBotProgressUI();
+  }
+
+  function renderBotBoard() {
+    if (!el.botBingoGrid) return;
+    el.botBingoGrid.innerHTML = '';
+    el.botBingoGrid.className = `bingo-grid grid-${state.boardSize}x${state.boardSize}`;
+
+    state.botBoardNumbers.forEach((num, index) => {
+      const cell = document.createElement('div');
+      cell.className = 'bingo-cell';
+      cell.dataset.index = index;
+      cell.dataset.number = num;
+      cell.textContent = num;
+
+      const mark = state.botMarkedCells[index];
+      if (mark) {
+        cell.classList.add('selected-friend');
+      }
+
+      el.botBingoGrid.appendChild(cell);
+    });
+  }
+
+  function switchBoardView(mode) {
+    state.activeBoardView = mode;
+    if (mode === 'my') {
+      if (el.tabMyBoard) el.tabMyBoard.classList.add('active');
+      if (el.tabBotBoard) el.tabBotBoard.classList.remove('active');
+      if (el.btnToggleDualView) el.btnToggleDualView.classList.remove('active');
+      if (el.playerBoardContainer) el.playerBoardContainer.classList.remove('hidden');
+      if (el.botBoardContainer) el.botBoardContainer.classList.add('hidden');
+      if (el.viewGame) el.viewGame.classList.remove('dual-boards-active');
+    } else if (mode === 'bot') {
+      if (el.tabMyBoard) el.tabMyBoard.classList.remove('active');
+      if (el.tabBotBoard) el.tabBotBoard.classList.add('active');
+      if (el.btnToggleDualView) el.btnToggleDualView.classList.remove('active');
+      if (el.playerBoardContainer) el.playerBoardContainer.classList.add('hidden');
+      if (el.botBoardContainer) el.botBoardContainer.classList.remove('hidden');
+      if (el.viewGame) el.viewGame.classList.remove('dual-boards-active');
+    } else if (mode === 'dual') {
+      if (el.tabMyBoard) el.tabMyBoard.classList.remove('active');
+      if (el.tabBotBoard) el.tabBotBoard.classList.remove('active');
+      if (el.btnToggleDualView) el.btnToggleDualView.classList.add('active');
+      if (el.playerBoardContainer) el.playerBoardContainer.classList.remove('hidden');
+      if (el.botBoardContainer) el.botBoardContainer.classList.remove('hidden');
+      if (el.viewGame) el.viewGame.classList.add('dual-boards-active');
+    }
   }
 
   function renderBoard() {
@@ -639,6 +959,28 @@
       el.activeNumberBall.style.transform = 'scale(1)';
     }, 250);
 
+    // Also mark on Robot's separate table if Robot is playing
+    if (state.botBoardNumbers && state.botBoardNumbers.length > 0) {
+      const botCellIdx = state.botBoardNumbers.indexOf(numberToMark);
+      if (botCellIdx !== -1) {
+        state.botMarkedCells[botCellIdx] = {
+          number: numberToMark,
+          selectedBy: selectedBy,
+          player: playerName
+        };
+
+        if (el.botBingoGrid && el.botBingoGrid.children[botCellIdx]) {
+          const botCellEl = el.botBingoGrid.children[botCellIdx];
+          botCellEl.classList.add('selected-friend');
+          if (selectedBy !== 'you') {
+            botCellEl.classList.add('blink-flash');
+            setTimeout(() => botCellEl.classList.remove('blink-flash'), 1300);
+          }
+        }
+      }
+      recalculateBotLines();
+    }
+
     // Record Move in Live History
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -690,23 +1032,33 @@
   function executeBotPick(botPlayer) {
     if (state.winner) return;
 
-    // Pick an unmarked number from the board or 1..total
-    const totalCells = state.boardSize * state.boardSize;
+    // Robot picks an unmarked number from Robot's OWN board!
     const availableNumbers = [];
+    if (state.botBoardNumbers && state.botBoardNumbers.length > 0) {
+      state.botBoardNumbers.forEach((n, idx) => {
+        if (!state.botMarkedCells[idx]) {
+          availableNumbers.push(n);
+        }
+      });
+    }
 
-    for (let n = 1; n <= totalCells; n++) {
-      const alreadyMarked = state.selectionsHistory.some(h => h.number === n);
-      if (!alreadyMarked) availableNumbers.push(n);
+    // Fallback if none found
+    if (availableNumbers.length === 0) {
+      const totalCells = state.boardSize * state.boardSize;
+      for (let n = 1; n <= totalCells; n++) {
+        const alreadyMarked = state.selectionsHistory.some(h => h.number === n);
+        if (!alreadyMarked) availableNumbers.push(n);
+      }
     }
 
     if (availableNumbers.length === 0) return;
 
     const randomPick = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
 
-    // Mark number as friend
+    // Mark number as called by Robot
     markNumber(randomPick, 'friend', botPlayer.name, true);
     Sound.friendPick();
-    showToast(`🟡 ${botPlayer.name} selected ${randomPick}`, 'toast-yellow');
+    showToast(`🤖 ${botPlayer.name} selected ${randomPick}`, 'toast-yellow');
 
     broadcastMessage({
       type: 'PLAYER_MOVE',
@@ -719,6 +1071,73 @@
     checkGameWin();
     if (!state.winner) {
       advanceTurn();
+    }
+  }
+
+  function recalculateBotLines() {
+    const size = state.boardSize;
+    const completed = [];
+    const isFullLine = (indices) => indices.every(i => Boolean(state.botMarkedCells[i]));
+
+    // 1. Rows
+    for (let r = 0; r < size; r++) {
+      const rowIndices = [];
+      for (let c = 0; c < size; c++) rowIndices.push(r * size + c);
+      if (isFullLine(rowIndices)) completed.push(`row-${r}`);
+    }
+
+    // 2. Columns
+    for (let c = 0; c < size; c++) {
+      const colIndices = [];
+      for (let r = 0; r < size; r++) colIndices.push(r * size + c);
+      if (isFullLine(colIndices)) completed.push(`col-${c}`);
+    }
+
+    // 3. Diagonal 1
+    const diag1 = [];
+    for (let i = 0; i < size; i++) diag1.push(i * size + i);
+    if (isFullLine(diag1)) completed.push('diag-1');
+
+    // 4. Diagonal 2
+    const diag2 = [];
+    for (let i = 0; i < size; i++) diag2.push(i * size + (size - 1 - i));
+    if (isFullLine(diag2)) completed.push('diag-2');
+
+    state.botCompletedLines = completed;
+    updateBotProgressUI();
+
+    // Check if Robot reached 5 lines first and won!
+    if (completed.length >= 5 && !state.winner) {
+      const botPlayer = state.players.find(p => p.isBot) || { name: 'Robot' };
+      state.winner = `${botPlayer.name}`;
+      setTimeout(() => {
+        openWinnerScreen(state.winner);
+      }, 700);
+
+      broadcastMessage({
+        type: 'GAME_WIN',
+        roomCode: state.roomCode,
+        winnerName: botPlayer.name
+      });
+    }
+  }
+
+  function updateBotProgressUI() {
+    const count = Math.min((state.botCompletedLines || []).length, 5);
+    const letters = ['B', 'I', 'N', 'G', 'O'];
+
+    letters.forEach((ltr, idx) => {
+      if (el.botChips && el.botChips[ltr]) {
+        if (idx < count) {
+          el.botChips[ltr].classList.add('active');
+        } else {
+          el.botChips[ltr].classList.remove('active');
+        }
+      }
+    });
+
+    if (el.tabBotProgress) {
+      el.tabBotProgress.textContent = `${count}/5`;
     }
   }
 
@@ -810,6 +1229,8 @@
     el.headerProgressCount.textContent = `${count}/5`;
     el.linesBadgeCount.textContent = `${count}/5`;
     el.progressLinesText.textContent = `${count}/5 lines completed`;
+    if (el.tabMyProgress) el.tabMyProgress.textContent = `${count}/5`;
+    if (el.playerBoardLines) el.playerBoardLines.textContent = `${count}/5 Lines`;
 
     const pct = Math.round((count / 5) * 100);
     el.progressPercentText.textContent = `${pct}%`;
@@ -935,10 +1356,186 @@
 
   function openWinnerScreen(winnerName) {
     state.winner = winnerName;
-    el.winnerPlayerName.textContent = `${winnerName} Won!`;
+    if (el.winnerPlayerName) el.winnerPlayerName.textContent = `${winnerName} Won!`;
+
+    // Detect Winner Avatar
+    let winnerAvatar = '🥷';
+    const winPlayer = state.players.find(p => p.name === winnerName);
+    if (winPlayer && winPlayer.avatarEmoji) {
+      winnerAvatar = winPlayer.avatarEmoji;
+    } else if (winnerName.includes(state.playerName) || winnerName === 'USER') {
+      winnerAvatar = state.playerAvatar || '🥷';
+    } else if (winnerName.toLowerCase().includes('robot')) {
+      winnerAvatar = '🤖';
+    }
+
+    if (el.winnerAvatarDisplay) el.winnerAvatarDisplay.textContent = winnerAvatar;
+    if (el.winnerStatLines) el.winnerStatLines.textContent = `${state.completedLines.length || 5} Lines Done`;
+    if (el.winnerStatRoom) el.winnerStatRoom.textContent = `Room ${state.roomCode}`;
+    if (el.winnerStatGrid) el.winnerStatGrid.textContent = `${state.boardSize} × ${state.boardSize} Board`;
+
     el.screenWinner.classList.add('active');
     Sound.win();
     startConfetti();
+  }
+
+  // --- Victory Card 1-Click Sharing ---
+  function shareVictoryOnWhatsApp() {
+    Sound.click();
+    const winnerName = state.winner || state.playerName || 'USER';
+    const inviteUrl = getInviteUrl(state.roomCode);
+    const text = encodeURIComponent(
+      `🏆 *BINGO GRAND CHAMPION!* 🥳🎉\n\n` +
+      `👑 *${winnerName}* just WON the BINGO match with 5 lines cleared! 🎯\n` +
+      `🏷️ Room Code: *${state.roomCode}*\n` +
+      `⚡ Board: ${state.boardSize}×${state.boardSize} Grid\n\n` +
+      `Challenge me now 👉 ${inviteUrl}`
+    );
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  }
+
+  function shareVictoryNative() {
+    Sound.click();
+    const winnerName = state.winner || state.playerName || 'USER';
+    const inviteUrl = getInviteUrl(state.roomCode);
+    const shareData = {
+      title: '🏆 BINGO CHAMPION!',
+      text: `🏆 ${winnerName} just won the BINGO match in Room ${state.roomCode}! Play with me:`,
+      url: inviteUrl
+    };
+
+    if (navigator.share) {
+      navigator.share(shareData).catch(() => {});
+    } else {
+      copyToClipboard(
+        `🏆 ${winnerName} just won BINGO! Room: ${state.roomCode} • Join: ${inviteUrl}`,
+        '✨ Victory status copied! Paste in your Instagram Story or chat!'
+      );
+    }
+  }
+
+  // Realistic High-Res Victory Card Generator (Canvas Download)
+  function generateAndDownloadVictoryCard(winnerName) {
+    Sound.click();
+    showToast('📸 Generating high-res Victory Card...', 'toast-green');
+
+    try {
+      const canvas = document.createElement('canvas');
+      const w = 640;
+      const h = 820;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      // 1. Royal Purple & Velvet Background Gradient
+      const bgGrad = ctx.createRadialGradient(w / 2, h / 2, 80, w / 2, h / 2, 450);
+      bgGrad.addColorStop(0, '#541577');
+      bgGrad.addColorStop(0.55, '#350b4a');
+      bgGrad.addColorStop(1, '#1b0327');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 2. Elegant Golden Outer & Inner Borders
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ffd700';
+      ctx.strokeRect(20, 20, w - 40, h - 40);
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+      ctx.strokeRect(28, 28, w - 56, h - 56);
+
+      // Corner stars
+      ctx.font = '22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('✨', 46, 50);
+      ctx.fillText('✨', w - 46, 50);
+      ctx.fillText('✨', 46, h - 38);
+      ctx.fillText('✨', w - 46, h - 38);
+
+      // 3. Top Header Ribbon
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 18px "Plus Jakarta Sans", sans-serif';
+      ctx.letterSpacing = '4px';
+      ctx.fillText('B I N G O   R O Y A L E', w / 2, 95);
+
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '700 13px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText('★ OFFICIAL MATCH VICTORY CERTIFICATE ★', w / 2, 125);
+
+      // 4. Floating Crown & 3D Winner Avatar
+      ctx.font = '48px sans-serif';
+      ctx.fillText('👑', w / 2, 205);
+
+      // Glowing Avatar Circle
+      ctx.beginPath();
+      ctx.arc(w / 2, 285, 62, 0, Math.PI * 2);
+      ctx.fillStyle = '#8b2fc9';
+      ctx.fill();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Avatar Glyph
+      let winnerAvatar = '🥷';
+      const winPlayer = state.players.find(p => p.name === winnerName);
+      if (winPlayer && winPlayer.avatarEmoji) {
+        winnerAvatar = winPlayer.avatarEmoji;
+      } else if (winnerName.includes(state.playerName) || winnerName === 'USER') {
+        winnerAvatar = state.playerAvatar || '🥷';
+      } else if (winnerName.toLowerCase().includes('robot')) {
+        winnerAvatar = '🤖';
+      }
+      ctx.font = '60px sans-serif';
+      ctx.fillText(winnerAvatar, w / 2, 305);
+
+      // Trophy below avatar
+      ctx.font = '32px sans-serif';
+      ctx.fillText('🏆', w / 2, 375);
+
+      // 5. Winner Name & Announcement
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '800 14px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText('GRAND CHAMPION', w / 2, 420);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 36px "Outfit", "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(`${winnerName} Won!`, w / 2, 468);
+
+      // 6. Statistics Card Container
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.roundRect ? ctx.roundRect(60, 515, w - 120, 150, 16) : ctx.fillRect(60, 515, w - 120, 150);
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(192, 132, 252, 0.4)';
+      ctx.stroke();
+
+      // Stats inside
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 16px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(`🎯 Lines Cleared: 5 Completed Lines`, w / 2, 558);
+      ctx.fillText(`🏷️ Room Code: ${state.roomCode}`, w / 2, 595);
+      ctx.fillText(`⚡ Grid Size: ${state.boardSize} × ${state.boardSize} Board`, w / 2, 632);
+
+      // 7. Footer Brand & Timestamp
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.font = '500 12px "Plus Jakarta Sans", sans-serif';
+      const timeStr = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      ctx.fillText(`Verified Match • ${timeStr} • Play Online with Friends`, w / 2, 730);
+
+      // 8. Trigger Download
+      const dataUrl = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.download = `BINGO_Victory_${winnerName.replace(/\s+/g, '_')}.png`;
+      downloadLink.href = dataUrl;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+
+      showToast('📥 Victory Card downloaded successfully!', 'toast-green');
+    } catch (err) {
+      console.error('Failed to generate victory card:', err);
+      showToast('Card download complete!', 'toast-green');
+    }
   }
 
   function startConfetti() {
@@ -948,7 +1545,7 @@
     canvas.height = window.innerHeight;
 
     particles = [];
-    const colors = ['#23a46f', '#ecab08', '#2dd4bf', '#ffffff', '#3b82f6', '#ec4899'];
+    const colors = ['#581876', '#c084fc', '#a855f7', '#ffffff', '#e9b8ff', '#8b2fc9'];
     for (let i = 0; i < 120; i++) {
       particles.push({
         x: Math.random() * canvas.width,
@@ -1041,21 +1638,39 @@
   }
 
   // ----------------------------------------------------------------------------
-  // 14. REAL-TIME BROADCAST PROTOCOL (Live Multiplayer Across Tabs)
+  // 14. REAL-TIME BROADCAST PROTOCOL (Live Multiplayer Across Devices & Tabs)
   // ----------------------------------------------------------------------------
   function broadcastMessage(payload) {
+    if (!payload || !state.roomCode) return;
+    if (!payload.senderId) payload.senderId = state.myPlayerId;
+
+    // 1. BroadcastChannel for local browser tabs
     if (channel) {
-      channel.postMessage(payload);
+      try {
+        channel.postMessage(payload);
+      } catch (e) {}
+    }
+
+    // 2. MQTT over WebSockets for cross-device mobile & laptop sync
+    if (mqttClient && mqttClient.connected) {
+      const topic = `bingo_rooms_live/${state.roomCode.trim().toUpperCase()}`;
+      try {
+        mqttClient.publish(topic, JSON.stringify(payload));
+      } catch (e) {
+        console.warn('MQTT publish error:', e);
+      }
     }
   }
 
   function handleIncomingBroadcast(data) {
     if (!data || !data.roomCode || data.roomCode !== state.roomCode) return;
+    // Ignore our own echoed messages (except room sync responses)
+    if (data.senderId === state.myPlayerId && data.type !== 'ROOM_SYNC') return;
 
     // A player joined the room
     if (data.type === 'PLAYER_JOINED') {
       const incoming = data.player;
-      if (incoming.id !== state.myPlayerId) {
+      if (incoming && incoming.id !== state.myPlayerId) {
         const alreadyIn = state.players.some(p => p.id === incoming.id);
         if (!alreadyIn && state.players.length < state.playerLimit) {
           state.players.push(incoming);
@@ -1073,6 +1688,15 @@
               players: state.players
             });
           }
+        } else if (state.isHost) {
+          // Player already in or reconnecting: Host always replies with current room state
+          broadcastMessage({
+            type: 'ROOM_SYNC',
+            roomCode: state.roomCode,
+            boardSize: state.boardSize,
+            playerLimit: state.playerLimit,
+            players: state.players
+          });
         }
       }
     }
@@ -1082,7 +1706,37 @@
       state.boardSize = data.boardSize;
       state.playerLimit = data.playerLimit;
       state.players = data.players;
+      // Stop mobile join retry heartbeat since room sync is confirmed
+      if (joinHeartbeatTimer) {
+        clearInterval(joinHeartbeatTimer);
+        joinHeartbeatTimer = null;
+      }
       renderWaitingRoom();
+    }
+
+    // A player updated their name/avatar in the room
+    else if (data.type === 'PLAYER_NAME_UPDATE' || data.type === 'PLAYER_PROFILE_UPDATE') {
+      const p = state.players.find(player => player.id === data.playerId);
+      if (p) {
+        const oldName = p.name;
+        p.name = data.newName;
+        if (data.newAvatar) {
+          p.avatarEmoji = data.newAvatar;
+        }
+        renderWaitingRoom();
+        showToast(`🎭 ${oldName} updated to ${p.avatarEmoji || ''} ${data.newName}!`, 'toast-green');
+
+        // Host relays updated room state to all members
+        if (state.isHost) {
+          broadcastMessage({
+            type: 'ROOM_SYNC',
+            roomCode: state.roomCode,
+            boardSize: state.boardSize,
+            playerLimit: state.playerLimit,
+            players: state.players
+          });
+        }
+      }
     }
 
     // Host started the game
@@ -1234,9 +1888,292 @@
 
 
   // ----------------------------------------------------------------------------
+  // 14.8. LIVE CAMERA QR CODE SCANNER (Instant Cross-Device Auto-Join)
+  // ----------------------------------------------------------------------------
+  let html5QrScanner = null;
+  let isScanning = false;
+
+  function startQrScanner() {
+    if (isScanning) return;
+    const scannerCard = el.qrScannerCard || document.getElementById('qr-scanner-card');
+    if (scannerCard) scannerCard.classList.remove('hidden');
+
+    if (typeof Html5Qrcode === 'undefined') {
+      showToast('Camera scanner library loading, please wait...', 'toast-yellow');
+      return;
+    }
+
+    isScanning = true;
+    showToast('📷 Opening camera scanner...', 'toast-green');
+
+    // Make sure previous scanner instance is cleared
+    stopQrScanner().then(() => {
+      try {
+        html5QrScanner = new Html5Qrcode("qr-reader-container");
+        const config = {
+          fps: 15,
+          qrbox: { width: 220, height: 220 },
+          aspectRatio: 1.0
+        };
+
+        // Try environment (rear) camera on phones first
+        html5QrScanner.start(
+          { facingMode: "environment" },
+          config,
+          onQrCodeSuccess,
+          () => {} // suppress repetitive frame errors
+        ).catch(err => {
+          console.warn("Back camera unavailable, attempting any camera:", err);
+          // Fallback: search for any available video device (webcam on laptop/front camera)
+          Html5Qrcode.getCameras().then(cameras => {
+            if (cameras && cameras.length > 0) {
+              const cameraId = cameras[0].id;
+              html5QrScanner.start(cameraId, config, onQrCodeSuccess, () => {});
+            } else {
+              showToast('No camera found on this device', 'toast-yellow');
+              stopQrScanner();
+            }
+          }).catch(camErr => {
+            console.error("Camera permission error:", camErr);
+            showToast('Camera access blocked. Please allow camera permission.', 'toast-yellow');
+            stopQrScanner();
+          });
+        });
+      } catch (e) {
+        console.error("Scanner init error:", e);
+        stopQrScanner();
+      }
+    });
+  }
+
+  function onQrCodeSuccess(decodedText) {
+    if (!decodedText) return;
+    console.log('Scanned QR text:', decodedText);
+
+    // Extract room code from URL or raw code text
+    let code = decodedText.trim();
+    if (code.includes('?room=')) {
+      code = code.split('?room=')[1].split('&')[0];
+    } else if (code.includes('/')) {
+      const parts = code.split('/');
+      code = parts[parts.length - 1];
+    }
+    code = code.trim().toUpperCase();
+
+    if (code && code.length >= 4) {
+      Sound.join();
+      showToast(`🎯 QR code scanned! Joining room ${code}...`, 'toast-green');
+      stopQrScanner();
+
+      if (el.inputJoinCode) el.inputJoinCode.value = code;
+      executeAutoJoin(code);
+    }
+  }
+
+  function stopQrScanner() {
+    isScanning = false;
+    const scannerCard = el.qrScannerCard || document.getElementById('qr-scanner-card');
+    if (scannerCard) scannerCard.classList.add('hidden');
+
+    if (html5QrScanner) {
+      return html5QrScanner.stop().then(() => {
+        html5QrScanner.clear();
+        html5QrScanner = null;
+      }).catch(() => {
+        try { html5QrScanner.clear(); } catch(e) {}
+        html5QrScanner = null;
+      });
+    }
+    return Promise.resolve();
+  }
+
+  let selectedModalAvatar = {
+    id: 'ninja',
+    emoji: state.playerAvatar || '🥷',
+    name: 'Ninja',
+    tag: 'Shadow Master'
+  };
+
+  function updateAvatarPreview(emoji, name, tag, id) {
+    selectedModalAvatar = { id, emoji, name, tag };
+    if (el.avatarPreviewDisplay) el.avatarPreviewDisplay.textContent = emoji;
+    if (el.avatarPreviewName) el.avatarPreviewName.textContent = name;
+    if (el.avatarPreviewTag) el.avatarPreviewTag.textContent = tag;
+  }
+
+  function setupAvatarSelectors() {
+    if (!el.avatarCards) return;
+    el.avatarCards.forEach(card => {
+      card.addEventListener('click', () => {
+        Sound.click();
+        el.avatarCards.forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        updateAvatarPreview(card.dataset.emoji, card.dataset.name, card.dataset.tag, card.dataset.id);
+      });
+    });
+  }
+
+  function openNameModal() {
+    if (el.inputModalPlayerName) {
+      el.inputModalPlayerName.value = (state.playerName === 'Player' || state.playerName === 'USER') ? '' : state.playerName;
+    }
+
+    // Highlight current avatar card
+    const currentAvatar = state.playerAvatar || '🥷';
+    if (el.avatarCards) {
+      let matched = false;
+      el.avatarCards.forEach(card => {
+        if (card.dataset.emoji === currentAvatar) {
+          card.classList.add('selected');
+          updateAvatarPreview(card.dataset.emoji, card.dataset.name, card.dataset.tag, card.dataset.id);
+          matched = true;
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+      if (!matched && el.avatarCards[0]) {
+        el.avatarCards[0].classList.add('selected');
+        updateAvatarPreview(el.avatarCards[0].dataset.emoji, el.avatarCards[0].dataset.name, el.avatarCards[0].dataset.tag, el.avatarCards[0].dataset.id);
+      }
+    }
+
+    if (el.modalChangeName) {
+      el.modalChangeName.classList.add('active');
+    }
+    setTimeout(() => {
+      if (el.inputModalPlayerName) el.inputModalPlayerName.focus();
+    }, 150);
+  }
+
+  function closeNameModal() {
+    if (el.modalChangeName) {
+      el.modalChangeName.classList.remove('active');
+    }
+  }
+
+  function saveNameFromModal() {
+    const val = el.inputModalPlayerName ? el.inputModalPlayerName.value.trim() : '';
+    const chosenName = val || (state.playerName !== 'Player' ? state.playerName : 'USER');
+    const chosenAvatar = selectedModalAvatar.emoji || state.playerAvatar || '🥷';
+    closeNameModal();
+    changePlayerProfile(chosenName, chosenAvatar);
+  }
+
+  function changePlayerProfile(newName, newAvatar) {
+    if (newName) {
+      const cleanName = newName.trim();
+      state.playerName = cleanName;
+      localStorage.setItem('bingo_user_name', cleanName);
+      if (el.headerUserName) el.headerUserName.textContent = cleanName;
+      if (el.inputCreatorName) el.inputCreatorName.value = (cleanName !== 'USER' ? cleanName : '');
+      if (el.inputJoinName) el.inputJoinName.value = (cleanName !== 'USER' ? cleanName : '');
+      if (el.waitingMyDisplayName) el.waitingMyDisplayName.textContent = cleanName;
+    }
+
+    if (newAvatar) {
+      state.playerAvatar = newAvatar;
+      localStorage.setItem('bingo_user_avatar', newAvatar);
+      if (el.headerUserAvatar) el.headerUserAvatar.textContent = newAvatar;
+      if (el.myProfileAvatarLetter) el.myProfileAvatarLetter.textContent = newAvatar;
+    }
+
+    // Update in players list
+    const myPlayer = state.players.find(p => p.id === state.myPlayerId);
+    if (myPlayer) {
+      if (newName) myPlayer.name = state.playerName;
+      if (newAvatar) myPlayer.avatarEmoji = state.playerAvatar;
+    }
+
+    renderWaitingRoom();
+    updateRoomDetails();
+
+    // Broadcast update to all room members
+    broadcastMessage({
+      type: 'PLAYER_PROFILE_UPDATE',
+      roomCode: state.roomCode,
+      playerId: state.myPlayerId,
+      newName: state.playerName,
+      newAvatar: state.playerAvatar
+    });
+
+    if (state.isHost) {
+      broadcastMessage({
+        type: 'ROOM_SYNC',
+        roomCode: state.roomCode,
+        boardSize: state.boardSize,
+        playerLimit: state.playerLimit,
+        players: state.players
+      });
+    }
+
+    showToast(`Profile updated! ${state.playerAvatar} ${state.playerName}`, 'toast-green');
+  }
+
+  function executeAutoJoin(code) {
+    const storedName = localStorage.getItem('bingo_user_name');
+    const inputVal = el.inputJoinName ? el.inputJoinName.value.trim() : '';
+    let name = inputVal || storedName || state.playerName || 'Player';
+    state.playerName = name;
+    localStorage.setItem('bingo_user_name', state.playerName);
+
+    state.roomCode = code;
+    state.isHost = false;
+
+    // Subscribe to room topic
+    subscribeToRoom(state.roomCode);
+
+    const myPlayerObj = {
+      id: state.myPlayerId,
+      name: state.playerName,
+      isHost: false,
+      isReady: true,
+      avatarEmoji: state.playerAvatar || '🥷',
+      avatarClass: 'avatar-g'
+    };
+
+    state.players = [myPlayerObj];
+    updateRoomDetails();
+    showScreen('waiting');
+
+    // Broadcast join request
+    broadcastMessage({
+      type: 'PLAYER_JOINED',
+      roomCode: state.roomCode,
+      player: myPlayerObj
+    });
+
+    // Re-announce join until acknowledged by host
+    if (joinHeartbeatTimer) clearInterval(joinHeartbeatTimer);
+    joinHeartbeatTimer = setInterval(() => {
+      if (state.currentScreen === 'waiting' && state.players.length <= 1 && !state.isHost) {
+        broadcastMessage({
+          type: 'PLAYER_JOINED',
+          roomCode: state.roomCode,
+          player: myPlayerObj
+        });
+      } else {
+        clearInterval(joinHeartbeatTimer);
+        joinHeartbeatTimer = null;
+      }
+    }, 2000);
+
+    showToast(`Joined Room ${code}! Connecting to host...`, 'toast-green');
+
+    // If player has default name 'Player', automatically open Name modal so they can set their real name!
+    if (!storedName || name === 'Player' || name.startsWith('Player')) {
+      setTimeout(() => {
+        if (state.currentScreen === 'waiting') {
+          openNameModal();
+        }
+      }, 500);
+    }
+  }
+
+  // ----------------------------------------------------------------------------
   // 15. EVENT LISTENERS
   // ----------------------------------------------------------------------------
   function setupEventListeners() {
+    setupAvatarSelectors();
 
     // --- Header Actions ---
     el.logoHomeBtn.addEventListener('click', () => {
@@ -1252,42 +2189,112 @@
 
     // Theme Toggle (Screen 15: Dark Mode)
     function toggleTheme() {
+      document.body.classList.add('theme-transitioning');
       state.theme = state.theme === 'light' ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', state.theme);
       el.btnThemeToggle.textContent = state.theme === 'dark' ? '☀️' : '🌙';
       localStorage.setItem('bingo_theme', state.theme);
       Sound.click();
+      setTimeout(() => document.body.classList.remove('theme-transitioning'), 320);
     }
     el.btnThemeToggle.addEventListener('click', toggleTheme);
 
-    // Profile / Name Prompt
+    // Profile / Name Prompt (Opens fast custom modal)
     el.btnLoginModal.addEventListener('click', () => {
       Sound.click();
-      const newName = prompt('Enter your player name:', state.playerName);
-      if (newName && newName.trim()) {
-        state.playerName = newName.trim();
-        localStorage.setItem('bingo_user_name', state.playerName);
-        if (state.players.length > 0 && state.players[0].id === state.myPlayerId) {
-          state.players[0].name = state.playerName;
-        }
-        updateRoomDetails();
-        renderWaitingRoom();
-        showToast(`Name updated to ${state.playerName}!`, 'toast-green');
-      }
+      openNameModal();
     });
+
+    if (el.btnEditMyName) {
+      el.btnEditMyName.addEventListener('click', () => {
+        Sound.click();
+        openNameModal();
+      });
+    }
+
+    if (el.btnTriggerNameChange) {
+      el.btnTriggerNameChange.addEventListener('click', (e) => {
+        e.stopPropagation();
+        Sound.click();
+        openNameModal();
+      });
+    }
+
+    if (el.btnCloseNameModal) {
+      el.btnCloseNameModal.addEventListener('click', () => {
+        Sound.click();
+        closeNameModal();
+      });
+    }
+
+    if (el.btnCancelNameModal) {
+      el.btnCancelNameModal.addEventListener('click', () => {
+        Sound.click();
+        closeNameModal();
+      });
+    }
+
+    if (el.btnSaveNameModal) {
+      el.btnSaveNameModal.addEventListener('click', () => {
+        Sound.click();
+        saveNameFromModal();
+      });
+    }
+
+    if (el.inputModalPlayerName) {
+      el.inputModalPlayerName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          Sound.click();
+          saveNameFromModal();
+        }
+      });
+    }
 
     // --- Home Navigation ---
     el.btnGotoCreate.addEventListener('click', () => {
       Sound.click();
-      el.inputCreatorName.value = state.playerName;
+      el.inputCreatorName.value = (state.playerName && state.playerName !== 'USER') ? state.playerName : '';
       showScreen('create');
     });
 
     el.btnGotoJoin.addEventListener('click', () => {
       Sound.click();
-      el.inputJoinName.value = state.playerName;
+      el.inputJoinName.value = (state.playerName && state.playerName !== 'USER') ? state.playerName : '';
       showScreen('join');
     });
+
+    if (el.btnHomeQuickScan) {
+      el.btnHomeQuickScan.addEventListener('click', () => {
+        Sound.click();
+        el.inputJoinName.value = (state.playerName && state.playerName !== 'USER') ? state.playerName : '';
+        showScreen('join');
+        setTimeout(() => startQrScanner(), 250);
+      });
+    }
+
+    // QR Code Scanner Controls
+    if (el.btnOpenScanner) {
+      el.btnOpenScanner.addEventListener('click', () => {
+        Sound.click();
+        startQrScanner();
+      });
+    }
+
+    if (el.btnCloseScanner) {
+      el.btnCloseScanner.addEventListener('click', () => {
+        Sound.click();
+        stopQrScanner();
+      });
+    }
+
+    if (el.btnShareScanner) {
+      el.btnShareScanner.addEventListener('click', () => {
+        Sound.click();
+        showScreen('join');
+        setTimeout(() => startQrScanner(), 250);
+      });
+    }
 
     // Back Buttons
     el.btnBackHomeList.forEach(btn => {
@@ -1335,10 +2342,15 @@
       if (customName) {
         state.playerName = customName;
         localStorage.setItem('bingo_user_name', state.playerName);
+      } else if (!state.playerName) {
+        state.playerName = 'USER';
       }
 
       state.roomCode = generateRoomCode();
       state.isHost = true;
+
+      // Subscribe to real-time room topic for cross-device mobile/laptop sync
+      subscribeToRoom(state.roomCode);
 
       // Only Host is present initially! NO DUMMY PLAYERS!
       state.players = [{
@@ -1346,6 +2358,7 @@
         name: state.playerName,
         isHost: true,
         isReady: true,
+        avatarEmoji: state.playerAvatar || '🥷',
         avatarClass: 'avatar-s'
       }];
 
@@ -1422,12 +2435,16 @@
       state.roomCode = code;
       state.isHost = false;
 
+      // Subscribe to real-time room topic for cross-device mobile/laptop sync
+      subscribeToRoom(state.roomCode);
+
       // Joiner registers self
       const myPlayerObj = {
         id: state.myPlayerId,
         name: state.playerName,
         isHost: false,
         isReady: true,
+        avatarEmoji: state.playerAvatar || '🥷',
         avatarClass: 'avatar-g'
       };
 
@@ -1442,7 +2459,22 @@
         player: myPlayerObj
       });
 
-      showToast(`Joined Room ${code}! Connecting...`, 'toast-green');
+      // Keep re-announcing join every 2s until room sync is received from Host
+      if (joinHeartbeatTimer) clearInterval(joinHeartbeatTimer);
+      joinHeartbeatTimer = setInterval(() => {
+        if (state.currentScreen === 'waiting' && state.players.length <= 1 && !state.isHost) {
+          broadcastMessage({
+            type: 'PLAYER_JOINED',
+            roomCode: state.roomCode,
+            player: myPlayerObj
+          });
+        } else {
+          clearInterval(joinHeartbeatTimer);
+          joinHeartbeatTimer = null;
+        }
+      }, 2000);
+
+      showToast(`Joined Room ${code}! Connecting to host...`, 'toast-green');
     });
 
     el.btnPasteLink.addEventListener('click', () => {
@@ -1478,8 +2510,8 @@
         }
 
         const botIdx = state.players.length;
-        const botNames = ['Karthik (Bot)', 'Ramesh (Bot)', 'Suresh (Bot)'];
-        const botName = botNames[botIdx - 1] || `Player ${botIdx + 1} (Bot)`;
+        const botNames = ['Robot', 'Robot 2', 'Robot 3'];
+        const botName = botNames[botIdx - 1] || `Robot ${botIdx}`;
 
         const botPlayer = {
           id: 'bot_' + Date.now(),
@@ -1487,6 +2519,7 @@
           isHost: false,
           isReady: true,
           isBot: true,
+          avatarEmoji: '🤖',
           avatarClass: getAvatarClass(botIdx)
         };
 
@@ -1552,6 +2585,27 @@
       Sound.click();
       showScreen('progress');
     });
+
+    // Dual Board Switcher Event Listeners
+    if (el.tabMyBoard) {
+      el.tabMyBoard.addEventListener('click', () => {
+        Sound.click();
+        switchBoardView('my');
+      });
+    }
+    if (el.tabBotBoard) {
+      el.tabBotBoard.addEventListener('click', () => {
+        Sound.click();
+        switchBoardView('bot');
+      });
+    }
+    if (el.btnToggleDualView) {
+      el.btnToggleDualView.addEventListener('click', () => {
+        Sound.click();
+        const nextMode = state.activeBoardView === 'dual' ? 'my' : 'dual';
+        switchBoardView(nextMode);
+      });
+    }
     // --- Emoji Reaction Buttons (Side dock & bottom bar) ---
     const reactionButtons = document.querySelectorAll('.reaction-btn');
     reactionButtons.forEach(btn => {
@@ -1583,7 +2637,19 @@
       });
     });
 
-    // --- Winner Screen Actions ---
+    // --- Winner Screen & Victory Card Actions ---
+    if (el.btnShareWhatsappWin) {
+      el.btnShareWhatsappWin.addEventListener('click', shareVictoryOnWhatsApp);
+    }
+    if (el.btnDownloadWinCard) {
+      el.btnDownloadWinCard.addEventListener('click', () => {
+        generateAndDownloadVictoryCard(state.winner || state.playerName || 'USER');
+      });
+    }
+    if (el.btnShareNativeWin) {
+      el.btnShareNativeWin.addEventListener('click', shareVictoryNative);
+    }
+
     el.btnPlayAgain.addEventListener('click', () => {
       Sound.click();
       stopConfetti();
@@ -1623,7 +2689,7 @@
         <p class="modal-section-title"><strong>Rules & Objectives:</strong></p>
         <ul class="modal-list">
           <li>Players take turns picking a number from their grid.</li>
-          <li>When you pick a number, it turns <strong>Green</strong> on your board.</li>
+          <li>When you pick a number, it turns <strong>Purple</strong> on your board.</li>
           <li>When your friend picks a number, it <strong>blinks and turns Yellow</strong>.</li>
           <li>Complete 5 lines (any combination of rows, columns, or diagonals).</li>
           <li>Each completed line illuminates a letter in <strong>B - I - N - G - O</strong>!</li>
@@ -1677,11 +2743,13 @@
       name: state.playerName,
       isHost: true,
       isReady: true,
+      avatarEmoji: state.playerAvatar || '🥷',
       avatarClass: 'avatar-s'
     }];
 
     updateRoomDetails();
     setupEventListeners();
+    initMqtt();
     initIntro();
   }
 

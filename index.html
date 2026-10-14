@@ -1,12 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BINGO - Play Together Online Multiplayer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@700;800&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
 </head>
+
 <body>
 
   <!-- =====================================================================
@@ -23,74 +29,26 @@
     </div>
 
     <div class="intro-content">
-      <div class="intro-crown">
-        <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" class="crown-svg">
-          <defs>
-            <linearGradient id="crownGold" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#FFE680"/>
-              <stop offset="30%" stop-color="#FFD700"/>
-              <stop offset="65%" stop-color="#C8960C"/>
-              <stop offset="100%" stop-color="#8B6914"/>
-            </linearGradient>
-            <linearGradient id="crownShine" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="rgba(255,255,255,0)" />
-              <stop offset="40%" stop-color="rgba(255,255,255,0.35)" />
-              <stop offset="100%" stop-color="rgba(255,255,255,0)" />
-            </linearGradient>
-            <linearGradient id="gemRed" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#ff6b6b"/>
-              <stop offset="50%" stop-color="#c0392b"/>
-              <stop offset="100%" stop-color="#7b0000"/>
-            </linearGradient>
-            <linearGradient id="gemBlue" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#74b9ff"/>
-              <stop offset="50%" stop-color="#0984e3"/>
-              <stop offset="100%" stop-color="#044080"/>
-            </linearGradient>
-            <filter id="crownShadow" x="-20%" y="-20%" width="140%" height="160%">
-              <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.5)"/>
-            </filter>
-          </defs>
-          <!-- Crown base band -->
-          <rect x="10" y="58" width="100" height="14" rx="3" fill="url(#crownGold)" filter="url(#crownShadow)"/>
-          <rect x="10" y="58" width="100" height="5" rx="2" fill="url(#crownShine)" opacity="0.6"/>
-          <!-- Crown body -->
-          <polygon points="10,60 10,20 35,42 60,5 85,42 110,20 110,60" fill="url(#crownGold)" filter="url(#crownShadow)"/>
-          <!-- Crown inner shadow for depth -->
-          <polygon points="10,60 10,30 35,48 60,16 85,48 110,30 110,60" fill="url(#crownShine)" opacity="0.25"/>
-          <!-- Crown outline -->
-          <polygon points="10,60 10,20 35,42 60,5 85,42 110,20 110,60" fill="none" stroke="#A0720A" stroke-width="1.2"/>
-          <!-- Base outline -->
-          <rect x="10" y="58" width="100" height="14" rx="3" fill="none" stroke="#A0720A" stroke-width="1"/>
-          <!-- Center gem (red) -->
-          <polygon points="60,22 65,32 60,38 55,32" fill="url(#gemRed)"/>
-          <polygon points="60,22 65,32 60,26" fill="rgba(255,150,150,0.5)"/>
-          <!-- Left gem (blue) -->
-          <polygon points="25,38 29,46 25,50 21,46" fill="url(#gemBlue)"/>
-          <polygon points="25,38 29,46 25,42" fill="rgba(150,200,255,0.5)"/>
-          <!-- Right gem (blue) -->
-          <polygon points="95,38 99,46 95,50 91,46" fill="url(#gemBlue)"/>
-          <polygon points="95,38 99,46 95,42" fill="rgba(150,200,255,0.5)"/>
-          <!-- Base gems row -->
-          <circle cx="35" cy="65" r="4" fill="url(#gemRed)"/>
-          <circle cx="35" cy="65" r="2" fill="rgba(255,180,180,0.6)"/>
-          <circle cx="60" cy="65" r="4" fill="url(#gemBlue)"/>
-          <circle cx="60" cy="65" r="2" fill="rgba(180,220,255,0.6)"/>
-          <circle cx="85" cy="65" r="4" fill="url(#gemRed)"/>
-          <circle cx="85" cy="65" r="2" fill="rgba(255,180,180,0.6)"/>
-        </svg>
+      <!-- 3D Lucky Golden/Purple Bingo Ball & Sparkles Badge (Replaces Crown) -->
+      <div class="intro-lucky-badge" title="Lucky Bingo">
+        <span class="intro-sparkle-star s-left">⭐</span>
+        <div class="intro-lucky-ball">
+          <div class="lucky-ball-glare"></div>
+          <span class="lucky-ball-num">7</span>
+          <div class="lucky-ball-ring"></div>
+        </div>
+        <span class="intro-sparkle-star s-right">⭐</span>
       </div>
-      <h1 class="intro-title">BINGO</h1>
+      <h1 class="intro-title">
+        <span class="intro-letter" style="--i:0; --r:-14deg">B</span>
+        <span class="intro-letter" style="--i:1; --r:10deg">I</span>
+        <span class="intro-letter" style="--i:2; --r:-9deg">N</span>
+        <span class="intro-letter" style="--i:3; --r:12deg">G</span>
+        <span class="intro-letter" style="--i:4; --r:-7deg">O</span>
+      </h1>
+      <div class="intro-impact-wave"></div>
       <p class="intro-tagline">Play • Connect • Win</p>
 
-      <div class="intro-progress-container">
-        <div class="intro-progress-bar">
-          <div class="intro-progress-fill" id="intro-fill"></div>
-        </div>
-        <span class="intro-time">2s</span>
-      </div>
-
-      <button type="button" class="skip-intro-btn" id="btn-skip-intro">Skip Intro ➔</button>
     </div>
   </div>
 
@@ -107,14 +65,19 @@
       </div>
 
       <div class="header-actions">
+        <!-- Live Cross-Device Sync Status -->
+        <div class="net-status-pill online" id="net-status-pill" title="Cross-Device Realtime Status">
+          <span class="net-status-dot"></span>
+          <span class="net-status-text" id="net-status-text">Online</span>
+        </div>
         <!-- Sound FX Toggle -->
         <button type="button" class="icon-btn" id="btn-sound-toggle" title="Toggle Sound FX">🔊</button>
         <!-- Dark Mode Toggle (Screen 15) -->
         <button type="button" class="icon-btn" id="btn-theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
         <!-- User Login / Profile -->
-        <button type="button" class="login-btn" id="btn-login-modal">
-          <span>👤</span>
-          <span id="header-user-name">Siddardha</span>
+        <button type="button" class="login-btn" id="btn-login-modal" title="Customize Profile & Avatar">
+          <span id="header-user-avatar" class="header-avatar-badge">🥷</span>
+          <span id="header-user-name">USER</span>
         </button>
       </div>
     </header>
@@ -133,9 +96,14 @@
             <button type="button" class="btn btn-primary" id="btn-goto-create">
               <span class="btn-icon">＋</span> Create Room
             </button>
-            <button type="button" class="btn btn-secondary" id="btn-goto-join">
-              <span class="btn-icon">👥</span> Join Room
-            </button>
+            <div class="hero-actions-row">
+              <button type="button" class="btn btn-secondary flex-1" id="btn-goto-join">
+                <span class="btn-icon">👥</span> Join Room
+              </button>
+              <button type="button" class="btn btn-secondary btn-quick-scan" id="btn-home-quick-scan" title="Scan QR Code to Join Instantly">
+                <span class="btn-icon">📷</span> Scan QR
+              </button>
+            </div>
           </div>
         </div>
 
@@ -159,7 +127,7 @@
         <div class="legend-pill">
           <div class="legend-item">
             <span class="legend-dot green"></span>
-            <span>Green = You selected</span>
+            <span>Purple = You selected</span>
           </div>
           <div class="legend-item">
             <span class="legend-dot yellow"></span>
@@ -182,7 +150,7 @@
           <!-- 1. Enter Your Name -->
           <div class="form-group">
             <label class="form-label" for="input-creator-name">1. Enter Your Name</label>
-            <input type="text" id="input-creator-name" class="form-input" placeholder="Your name" value="Siddardha">
+            <input type="text" id="input-creator-name" class="form-input" placeholder="Enter your name (e.g. Rahul, Priya)" value="">
           </div>
 
           <!-- 2. Select Board Size -->
@@ -255,15 +223,36 @@
             <span>📋</span> Copy Link
           </button>
 
-          <!-- Social Share Buttons -->
+          <!-- Prominent QR Code for Instant Mobile / Laptop Scan -->
+          <div class="share-qr-wrapper" id="share-qr-wrapper">
+            <div class="share-qr-title">📷 Scan with Phone to Join Game Instantly</div>
+            <div id="room-qr-code" class="qr-code-box"></div>
+            <div class="share-qr-hint">Scan with Camera, Google Lens, or in-app Scanner to join directly</div>
+          </div>
+
+          <!-- Social Share Buttons & Scanner -->
           <div class="share-social-wrapper">
-            <div class="share-social-title">Share via</div>
+            <div class="share-social-title">Share or Scan</div>
             <div class="share-social-icons">
+
+              <!-- In-App Camera Scanner Button -->
+              <button type="button" class="social-share-btn scanner" id="btn-share-scanner" title="Scan QR Code with Camera">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                  <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+                  <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                  <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+                  <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                  <circle cx="12" cy="12" r="3.5" fill="#10b981" stroke="#10b981"/>
+                </svg>
+                <span class="social-label">Scanner</span>
+              </button>
 
               <!-- WhatsApp -->
               <button type="button" class="social-share-btn whatsapp" id="share-whatsapp" title="WhatsApp">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  <path
+                    d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                 </svg>
                 <span class="social-label">WhatsApp</span>
               </button>
@@ -271,7 +260,8 @@
               <!-- Telegram -->
               <button type="button" class="social-share-btn telegram" id="share-telegram" title="Telegram">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                  <path
+                    d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
                 </svg>
                 <span class="social-label">Telegram</span>
               </button>
@@ -279,16 +269,21 @@
               <!-- Instagram -->
               <button type="button" class="social-share-btn instagram" id="share-instagram" title="Instagram">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+                  <path
+                    d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
                 </svg>
                 <span class="social-label">Instagram</span>
               </button>
 
               <!-- More / Native Share -->
               <button type="button" class="social-share-btn more" id="share-native" title="More Options">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
-                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                 </svg>
                 <span class="social-label">More</span>
               </button>
@@ -296,7 +291,16 @@
             </div>
           </div>
 
-          <button type="button" class="btn btn-secondary btn-full-width" id="btn-enter-waiting">
+          <!-- Protocol warning banner if opened via file:// -->
+          <div id="file-protocol-warning" class="protocol-warning-box hidden">
+            <span class="warning-icon">⚠️</span>
+            <div class="warning-text">
+              <strong>Local file mode detected:</strong> For mobile phones to connect, open this project using
+              <strong>Live Server</strong> in VS Code or deploy on Vercel.
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-secondary btn-full-width mt-1" id="btn-enter-waiting">
             Enter Waiting Room ➔
           </button>
         </div>
@@ -316,26 +320,47 @@
           <!-- Enter Player Name -->
           <div class="form-group">
             <label class="form-label" for="input-join-name">Your Name</label>
-            <input type="text" id="input-join-name" class="form-input" placeholder="Enter your name" value="Player">
+            <input type="text" id="input-join-name" class="form-input" placeholder="Enter your name (e.g. Rahul)">
           </div>
 
           <!-- Room Code Input -->
           <div class="form-group">
             <label class="form-label" for="input-join-code">Room Code</label>
             <div class="search-input-wrapper">
-              <input type="text" id="input-join-code" class="form-input form-input-code" placeholder="Enter room code (e.g. B7K9Q2)">
+              <input type="text" id="input-join-code" class="form-input form-input-code"
+                placeholder="Enter room code (e.g. B7K9Q2)">
               <span class="search-icon">🔍</span>
             </div>
           </div>
 
           <button type="button" class="btn btn-primary btn-full-width" id="btn-submit-join">
-            Join
+            Join Room
           </button>
 
           <div class="divider-or">OR</div>
 
+          <!-- Instant Camera QR Code Scanner -->
+          <button type="button" class="btn btn-secondary btn-full-width btn-scan-qr" id="btn-open-scanner">
+            <span class="btn-icon">📷</span> Scan QR Code to Join Instantly
+          </button>
+
+          <!-- Interactive QR Camera Scanner Box (Opens when Scan button is clicked) -->
+          <div id="qr-scanner-card" class="qr-scanner-card hidden">
+            <div class="qr-scanner-header">
+              <span class="scanner-title">📷 Align QR Code inside frame</span>
+              <button type="button" class="scanner-close-btn" id="btn-close-scanner" title="Close Camera">✕</button>
+            </div>
+            <div class="qr-reader-wrapper">
+              <div id="qr-reader-container" class="qr-reader-container"></div>
+              <div class="scanner-laser-line"></div>
+            </div>
+            <div class="scanner-tips">
+              Point camera at QR code on another phone or laptop to join automatically
+            </div>
+          </div>
+
           <!-- Join via Link preview -->
-          <div class="form-group">
+          <div class="form-group mt-1">
             <label class="form-label">Join via link</label>
             <div class="join-link-box" id="btn-paste-link">
               <span class="join-link-label">🔗 Paste or Open Invite Link</span>
@@ -366,6 +391,20 @@
             <span>👥</span>
             <span id="waiting-player-count">4/4</span>
           </div>
+        </div>
+
+        <!-- Player's Own Profile / Name Card with Quick Edit -->
+        <div class="my-profile-strip" id="btn-edit-my-name" title="Click to Change Your Avatar & Name">
+          <div class="my-profile-left">
+            <span class="my-profile-avatar" id="my-profile-avatar-letter">🥷</span>
+            <div class="my-profile-details">
+              <span class="my-profile-label">Your Profile</span>
+              <span class="my-profile-name" id="waiting-my-display-name">USER</span>
+            </div>
+          </div>
+          <button type="button" class="btn-change-name" id="btn-trigger-name-change">
+            <span>🎭</span> Avatar & Name
+          </button>
         </div>
 
         <div class="players-list-title">Players in Room</div>
@@ -427,7 +466,8 @@
               </div>
 
               <!-- BINGO Progress Letters Track -->
-              <div class="bingo-letters-widget cursor-pointer" id="btn-quick-progress" title="Click to view line progress">
+              <div class="bingo-letters-widget cursor-pointer" id="btn-quick-progress"
+                title="Click to view line progress">
                 <div class="bingo-letters-label">
                   <span>BINGO Progress</span>
                   <span id="header-progress-count" class="text-teal">0/5</span>
@@ -442,10 +482,53 @@
               </div>
             </div>
 
-            <!-- Bingo Board Grid Container -->
-            <div class="board-container">
+            <!-- Dual Board Switcher Tabs (Active when Bot is in the room) -->
+            <div id="bot-game-board-tabs" class="bot-board-tabs hidden">
+              <button type="button" class="board-tab-btn active" id="tab-my-board">
+                <span class="tab-icon">👤</span>
+                <span class="tab-title">Your Board</span>
+                <span class="board-tab-badge" id="tab-my-progress">0/5</span>
+              </button>
+              <button type="button" class="board-tab-btn" id="tab-bot-board">
+                <span class="tab-icon">🤖</span>
+                <span class="tab-title">Robot's Board</span>
+                <span class="board-tab-badge" id="tab-bot-progress">0/5</span>
+              </button>
+              <button type="button" class="board-tab-toggle" id="btn-toggle-dual-view" title="Toggle Side-by-Side Dual View">
+                <span>⚡ Both</span>
+              </button>
+            </div>
+
+            <!-- Bingo Board Grid Container (Player's Board) -->
+            <div class="board-container" id="player-board-container">
+              <div class="board-header-tag" id="player-board-tag">
+                <span class="board-tag-icon">👤</span>
+                <span class="board-tag-title">Your Board (Tap to pick)</span>
+                <span class="board-tag-count" id="player-board-lines">0/5 Lines</span>
+              </div>
               <div class="bingo-grid grid-5x5" id="bingo-grid">
                 <!-- Dynamically populated numbers -->
+              </div>
+            </div>
+
+            <!-- Robot's Board Grid Container (Robot's separate Table) -->
+            <div class="board-container bot-board-container hidden" id="bot-board-container">
+              <div class="board-header-tag bot-tag">
+                <div class="bot-tag-left">
+                  <span class="board-tag-icon">🤖</span>
+                  <span class="board-tag-title">Robot's Board</span>
+                </div>
+                <!-- Bot's BINGO progress chips -->
+                <div class="bot-bingo-chips" id="bot-bingo-chips">
+                  <span class="bot-chip" id="bot-chip-B">B</span>
+                  <span class="bot-chip" id="bot-chip-I">I</span>
+                  <span class="bot-chip" id="bot-chip-N">N</span>
+                  <span class="bot-chip" id="bot-chip-G">G</span>
+                  <span class="bot-chip" id="bot-chip-O">O</span>
+                </div>
+              </div>
+              <div class="bingo-grid grid-5x5" id="bot-bingo-grid">
+                <!-- Dynamically populated robot's distinct numbers -->
               </div>
             </div>
           </div>
@@ -559,10 +642,62 @@
          ===================================================================== -->
     <div id="screen-winner">
       <canvas id="confetti-canvas"></canvas>
-      <div class="winner-card">
-        <span class="winner-trophy">🏆</span>
-        <div class="winner-label">Winner</div>
-        <h2 class="winner-name" id="winner-player-name">Siddardha Won!</h2>
+      <div class="winner-card" id="winner-victory-card">
+        <!-- Victory Royal Header Ribbon -->
+        <div class="victory-header-badge">
+          <span class="victory-star">✨</span>
+          <span>BINGO GRAND CHAMPION</span>
+          <span class="victory-star">✨</span>
+        </div>
+
+        <!-- 3D Winner Avatar Podium -->
+        <div class="winner-avatar-podium">
+          <span class="winner-crown-floating">👑</span>
+          <div class="winner-avatar-ring">
+            <span class="winner-avatar-glyph" id="winner-avatar-display">🥷</span>
+          </div>
+          <div class="winner-laurel-wreath">🏆</div>
+        </div>
+
+        <div class="winner-label">Match Winner</div>
+        <h2 class="winner-name" id="winner-player-name">USER Won!</h2>
+
+        <!-- Match Stats Ribbon -->
+        <div class="winner-stats-ribbon">
+          <div class="stat-ribbon-chip">
+            <span class="stat-chip-icon">🎯</span>
+            <span class="stat-chip-val" id="winner-stat-lines">5 Lines Done</span>
+          </div>
+          <div class="stat-ribbon-chip">
+            <span class="stat-chip-icon">🏷️</span>
+            <span class="stat-chip-val" id="winner-stat-room">Room B7K9</span>
+          </div>
+          <div class="stat-ribbon-chip">
+            <span class="stat-chip-icon">⚡</span>
+            <span class="stat-chip-val" id="winner-stat-grid">5 × 5 Board</span>
+          </div>
+        </div>
+
+        <!-- Share Win Card Actions (WhatsApp, Instagram, Download) -->
+        <div class="victory-share-box">
+          <div class="victory-share-label"><span>📸</span> Share Your Victory Card:</div>
+          <div class="victory-share-grid">
+            <button type="button" class="btn-share-win whatsapp" id="btn-share-whatsapp-win" title="Share Victory to WhatsApp Status/Chat">
+              <span class="share-btn-icon">🟢</span>
+              <span>WhatsApp Status</span>
+            </button>
+            <button type="button" class="btn-share-win download" id="btn-download-win-card" title="Download High-Res Victory Card Image">
+              <span class="share-btn-icon">📥</span>
+              <span>Save Card (PNG)</span>
+            </button>
+            <button type="button" class="btn-share-win story" id="btn-share-native-win" title="Share to Instagram Story & other apps">
+              <span class="share-btn-icon">✨</span>
+              <span>Instagram / More</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Match Actions -->
         <div class="winner-actions">
           <button type="button" class="btn btn-primary btn-full-width" id="btn-play-again">
             🔄 Play Again
@@ -579,10 +714,10 @@
          ===================================================================== -->
     <div class="toast-notification" id="toast-notify">
       <span id="toast-icon">🟢</span>
-      <span id="toast-message">Siddardha (You) selected 15</span>
+      <span id="toast-message">USER (You) selected 15</span>
     </div>
 
-    </div>
+  </div>
 
   <!-- =====================================================================
        INFORMATION MODALS (Rules, Board Sizes, Multiplayer)
@@ -600,6 +735,82 @@
     </div>
   </div>
 
+  <!-- =====================================================================
+       PROFILE & AVATAR CUSTOMIZER MODAL (8 Cool Gaming Avatars)
+       ===================================================================== -->
+  <div class="modal-overlay" id="modal-change-name">
+    <div class="modal-sheet modal-name-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <h3 class="modal-title"><span>🎭</span> Profile & Avatar</h3>
+        <button type="button" class="modal-close" id="btn-close-name-modal">✕</button>
+      </div>
+      <div class="modal-content">
+        <!-- Live Selected Avatar Hero Badge -->
+        <div class="avatar-hero-card">
+          <div class="avatar-hero-ring" id="avatar-preview-display">🥷</div>
+          <div class="avatar-hero-info">
+            <div class="avatar-hero-name" id="avatar-preview-name">Ninja</div>
+            <div class="avatar-hero-title" id="avatar-preview-tag">Shadow Master</div>
+          </div>
+        </div>
+
+        <div class="avatar-section-title"><span>⚡</span> Choose Your Gaming Avatar:</div>
+        
+        <!-- 8 Cool Realistic Gaming Avatars Grid -->
+        <div class="avatar-selection-grid" id="avatar-selection-grid">
+          <div class="avatar-card-opt selected" data-id="ninja" data-emoji="🥷" data-name="Ninja" data-tag="Shadow Master">
+            <span class="avatar-card-emoji">🥷</span>
+            <span class="avatar-card-label">Ninja</span>
+          </div>
+          <div class="avatar-card-opt" data-id="robot" data-emoji="🤖" data-name="Robot" data-tag="Cyber Bot">
+            <span class="avatar-card-emoji">🤖</span>
+            <span class="avatar-card-label">Robot</span>
+          </div>
+          <div class="avatar-card-opt" data-id="wizard" data-emoji="🧙‍♂️" data-name="Wizard" data-tag="Arcane Mage">
+            <span class="avatar-card-emoji">🧙‍♂️</span>
+            <span class="avatar-card-label">Wizard</span>
+          </div>
+          <div class="avatar-card-opt" data-id="king" data-emoji="👑" data-name="King" data-tag="Royal Monarch">
+            <span class="avatar-card-emoji">👑</span>
+            <span class="avatar-card-label">King</span>
+          </div>
+          <div class="avatar-card-opt" data-id="lion" data-emoji="🦁" data-name="Lion" data-tag="Wild Apex">
+            <span class="avatar-card-emoji">🦁</span>
+            <span class="avatar-card-label">Lion</span>
+          </div>
+          <div class="avatar-card-opt" data-id="fox" data-emoji="🦊" data-name="Fox" data-tag="Sly Tactician">
+            <span class="avatar-card-emoji">🦊</span>
+            <span class="avatar-card-label">Fox</span>
+          </div>
+          <div class="avatar-card-opt" data-id="striker" data-emoji="⚡" data-name="Striker" data-tag="Thunder Bolt">
+            <span class="avatar-card-emoji">⚡</span>
+            <span class="avatar-card-label">Striker</span>
+          </div>
+          <div class="avatar-card-opt" data-id="gamer" data-emoji="🎮" data-name="Gamer" data-tag="Pro Player">
+            <span class="avatar-card-emoji">🎮</span>
+            <span class="avatar-card-label">Gamer</span>
+          </div>
+        </div>
+
+        <div class="form-group mt-2">
+          <label class="form-label" for="input-modal-player-name">Your Display Name:</label>
+          <input type="text" id="input-modal-player-name" class="form-input modal-name-input" maxlength="20" placeholder="Enter your name (e.g. USER, Rahul, Priya)">
+        </div>
+
+        <div class="modal-actions-row mt-2">
+          <button type="button" class="btn btn-secondary flex-1" id="btn-cancel-name-modal">Cancel</button>
+          <button type="button" class="btn btn-primary flex-1" id="btn-save-name-modal">Save Profile ✓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- External Real-time Multiplayer & QR code libraries -->
+  <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="js/app.js"></script>
 </body>
+
 </html>
