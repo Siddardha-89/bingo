@@ -17,10 +17,9 @@
     sessionStorage.setItem('bingo_player_id', myPlayerId);
   }
 
-  // Clear any legacy demo name from previous tests
-  if (localStorage.getItem('bingo_user_name') === 'Siddardha' || localStorage.getItem('bingo_user_name') === 'Player') {
-    localStorage.removeItem('bingo_user_name');
-  }
+  // Message and move deduplication sets to prevent BroadcastChannel + MQTT double execution
+  const seenMessageIds = new Set();
+  const processedMoveIds = new Set();
 
   // ----------------------------------------------------------------------------
   // 1. STATE MANAGEMENT
@@ -365,6 +364,7 @@
     turnBanner: document.getElementById('turn-announcement-banner'),
     turnIcon: document.getElementById('turn-icon'),
     turnText: document.getElementById('turn-text'),
+    btnSyncTurn: document.getElementById('btn-sync-turn'),
     activeNumberBall: document.getElementById('active-number-ball'),
     headerProgressCount: document.getElementById('header-progress-count'),
     chips: {
@@ -763,6 +763,7 @@
     state.completedLines = [];
     state.currentTurnIndex = 0;
     state.winner = null;
+    processedMoveIds.clear();
 
     // Generate randomized numbers for this player's board
     const pool = [];
@@ -890,20 +891,100 @@
   // ----------------------------------------------------------------------------
   // 9. GAMEPLAY & TURNS
   // ----------------------------------------------------------------------------
+  function healMyPlayerId() {
+    if (!state.players || state.players.length === 0) return;
+    const myName = (state.playerName || '').trim().toLowerCase();
+    if (!myName || myName === 'user' || myName === 'player') {
+      return;
+    }
+
+    const found = state.players.find(p => (p.name || '').trim().toLowerCase() === myName);
+    if (found && found.id && found.id !== state.myPlayerId) {
+      console.log(`Auto-healing player ID from ${state.myPlayerId} to ${found.id} for player "${state.playerName}"`);
+      state.myPlayerId = found.id;
+      sessionStorage.setItem('bingo_player_id', found.id);
+    }
+  }
+
+  function isMyTurn() {
+    if (!state.players || state.players.length === 0) return true;
+    if (state.currentTurnIndex >= state.players.length || state.currentTurnIndex < 0) {
+      state.currentTurnIndex = 0;
+    }
+    const currentPlayer = state.players[state.currentTurnIndex];
+    if (!currentPlayer) return true;
+
+    // 1. Direct ID match
+    if (currentPlayer.id && state.myPlayerId && currentPlayer.id === state.myPlayerId) {
+      return true;
+    }
+
+    // 2. Name match (case-insensitive) - heals desynced sessions
+    const myName = (state.playerName || '').trim().toLowerCase();
+    const currName = (currentPlayer.name || '').trim().toLowerCase();
+    if (myName && currName && myName === currName) {
+      healMyPlayerId();
+      return true;
+    }
+
+    // 3. Solo play or Bot match fallback
+    const humanPlayers = state.players.filter(p => !p.isBot);
+    if (humanPlayers.length === 1 && !currentPlayer.isBot) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function triggerTurnSync(forced = false) {
+    healMyPlayerId();
+    if (isMyTurn()) {
+      updateTurnDisplay();
+      showToast('🟢 It is your turn! Pick any available number on your board.', 'toast-green');
+      return;
+    }
+
+    const currentPlayer = state.players[state.currentTurnIndex] || {};
+    const name = currentPlayer.name || 'Current player';
+
+    const willForce = confirm(`Game stuck on ${name}'s turn?\n\nClick OK to pass turn to the next player, or Cancel to send a sync ping.`);
+    if (willForce) {
+      advanceTurn();
+      broadcastMessage({
+        type: 'SYNC_TURN_FORCE',
+        roomCode: state.roomCode,
+        newTurnIndex: state.currentTurnIndex,
+        newPlayerId: state.players[state.currentTurnIndex]?.id,
+        byPlayer: state.playerName
+      });
+      showToast(`🔄 Passed turn to ${state.players[state.currentTurnIndex]?.name}!`, 'toast-green');
+    } else {
+      broadcastMessage({
+        type: 'SYNC_REQUEST',
+        roomCode: state.roomCode,
+        fromPlayer: state.playerName
+      });
+      showToast('🔄 Sent sync ping to room...', 'toast-green');
+    }
+  }
+
   function handleCellClick(index, num, cellElement) {
     if (state.winner) return;
 
     // If cell already marked, ignore
     if (state.markedCells[index]) return;
 
-    // Check if it's player's turn
+    healMyPlayerId();
+    if (state.currentTurnIndex >= state.players.length || state.currentTurnIndex < 0) {
+      state.currentTurnIndex = 0;
+    }
     const currentPlayer = state.players[state.currentTurnIndex];
     if (!currentPlayer) return;
 
-    const isYourTurn = currentPlayer.id === state.myPlayerId;
+    const myTurn = isMyTurn();
 
-    if (!isYourTurn) {
-      showToast(`⏳ Please wait! It is ${currentPlayer.name}'s turn.`, 'toast-yellow');
+    if (!myTurn) {
+      showToast(`⏳ Please wait! It is ${currentPlayer.name}'s turn. (Tap 'Sync Turn' if stuck)`, 'toast-yellow');
       return;
     }
 
@@ -912,20 +993,32 @@
     Sound.yourPick();
     showToast(`🟢 ${state.playerName} (You) selected ${num}`, 'toast-green');
 
+    const nextTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
+    const nextPlayer = state.players[nextTurnIndex] || {};
+    const moveId = `m_${state.roomCode}_${Date.now()}_${num}_${Math.random().toString(36).substring(2, 6)}`;
+
+    processedMoveIds.add(moveId);
+
     // Broadcast move to other connected tabs
     broadcastMessage({
       type: 'PLAYER_MOVE',
+      moveId: moveId,
       roomCode: state.roomCode,
       number: num,
       playerId: state.myPlayerId,
-      playerName: state.playerName
+      playerName: state.playerName,
+      nextTurnIndex: nextTurnIndex,
+      nextPlayerId: nextPlayer.id,
+      nextPlayerName: nextPlayer.name
     });
 
     // Check game win
     checkGameWin();
 
     if (!state.winner) {
-      advanceTurn();
+      state.currentTurnIndex = nextTurnIndex;
+      updateTurnDisplay();
+      checkBotTurn();
     }
   }
 
@@ -1001,31 +1094,39 @@
     if (state.players.length === 0) return;
     state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
     updateTurnDisplay();
+    checkBotTurn();
+  }
 
-    // If it's a simulated Bot player's turn, automate bot pick
+  function checkBotTurn() {
+    if (state.winner) return;
     const activePlayer = state.players[state.currentTurnIndex];
-    if (activePlayer && activePlayer.isBot && !state.winner) {
+    if (activePlayer && activePlayer.isBot) {
       setTimeout(() => {
         if (state.currentScreen === 'game' && !state.winner) {
           executeBotPick(activePlayer);
         }
-      }, 2000);
+      }, 1800);
     }
   }
 
   function updateTurnDisplay() {
     if (state.players.length === 0) return;
+    healMyPlayerId();
+    if (state.currentTurnIndex >= state.players.length || state.currentTurnIndex < 0) {
+      state.currentTurnIndex = 0;
+    }
     const currentPlayer = state.players[state.currentTurnIndex] || state.players[0];
-    const isYourTurn = currentPlayer.id === state.myPlayerId;
+    const myTurn = isMyTurn();
 
-    if (isYourTurn) {
+    if (myTurn) {
       el.turnBanner.className = 'turn-banner your-turn';
       el.turnIcon.textContent = '🟢';
       el.turnText.textContent = 'Your Turn! Pick a number on the board.';
     } else {
       el.turnBanner.className = 'turn-banner friend-turn';
       el.turnIcon.textContent = '🟡';
-      el.turnText.textContent = `${currentPlayer.name}'s turn to pick...`;
+      const name = currentPlayer ? currentPlayer.name : 'Friend';
+      el.turnText.textContent = `${name}'s turn to pick...`;
     }
   }
 
@@ -1060,17 +1161,28 @@
     Sound.friendPick();
     showToast(`🤖 ${botPlayer.name} selected ${randomPick}`, 'toast-yellow');
 
+    const nextTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
+    const nextPlayer = state.players[nextTurnIndex] || {};
+    const moveId = `bot_${state.roomCode}_${Date.now()}_${randomPick}`;
+    processedMoveIds.add(moveId);
+
     broadcastMessage({
       type: 'PLAYER_MOVE',
+      moveId: moveId,
       roomCode: state.roomCode,
       number: randomPick,
       playerId: botPlayer.id,
-      playerName: botPlayer.name
+      playerName: botPlayer.name,
+      nextTurnIndex: nextTurnIndex,
+      nextPlayerId: nextPlayer.id,
+      nextPlayerName: nextPlayer.name
     });
 
     checkGameWin();
     if (!state.winner) {
-      advanceTurn();
+      state.currentTurnIndex = nextTurnIndex;
+      updateTurnDisplay();
+      checkBotTurn();
     }
   }
 
@@ -1643,6 +1755,9 @@
   function broadcastMessage(payload) {
     if (!payload || !state.roomCode) return;
     if (!payload.senderId) payload.senderId = state.myPlayerId;
+    if (!payload.msgId) {
+      payload.msgId = 'm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    }
 
     // 1. BroadcastChannel for local browser tabs
     if (channel) {
@@ -1667,29 +1782,38 @@
     // Ignore our own echoed messages (except room sync responses)
     if (data.senderId === state.myPlayerId && data.type !== 'ROOM_SYNC') return;
 
+    // Deduplicate across BroadcastChannel and MQTT
+    if (data.msgId) {
+      if (seenMessageIds.has(data.msgId)) return;
+      seenMessageIds.add(data.msgId);
+      if (seenMessageIds.size > 250) {
+        const oldest = seenMessageIds.values().next().value;
+        seenMessageIds.delete(oldest);
+      }
+    }
+
     // A player joined the room
     if (data.type === 'PLAYER_JOINED') {
       const incoming = data.player;
       if (incoming && incoming.id !== state.myPlayerId) {
-        const alreadyIn = state.players.some(p => p.id === incoming.id);
-        if (!alreadyIn && state.players.length < state.playerLimit) {
+        // Match existing player by ID or matching Name (handles mobile page refresh/reconnect)
+        const existingIdx = state.players.findIndex(p =>
+          p.id === incoming.id ||
+          (p.name && incoming.name && p.name.trim().toLowerCase() === incoming.name.trim().toLowerCase() && p.name.trim().toLowerCase() !== 'user' && p.name.trim().toLowerCase() !== 'player')
+        );
+
+        if (existingIdx !== -1) {
+          state.players[existingIdx] = incoming;
+          renderWaitingRoom();
+        } else if (state.players.length < state.playerLimit) {
           state.players.push(incoming);
           Sound.join();
           showToast(`🎉 ${incoming.name} joined the room!`, 'toast-green');
           renderWaitingRoom();
+        }
 
-          // Host replies with full room state to synchronize joiner
-          if (state.isHost) {
-            broadcastMessage({
-              type: 'ROOM_SYNC',
-              roomCode: state.roomCode,
-              boardSize: state.boardSize,
-              playerLimit: state.playerLimit,
-              players: state.players
-            });
-          }
-        } else if (state.isHost) {
-          // Player already in or reconnecting: Host always replies with current room state
+        // Host always replies with full room state to synchronize joiner
+        if (state.isHost) {
           broadcastMessage({
             type: 'ROOM_SYNC',
             roomCode: state.roomCode,
@@ -1705,7 +1829,10 @@
     else if (data.type === 'ROOM_SYNC') {
       state.boardSize = data.boardSize;
       state.playerLimit = data.playerLimit;
-      state.players = data.players;
+      if (data.players && data.players.length > 0) {
+        state.players = data.players;
+      }
+      healMyPlayerId();
       // Stop mobile join retry heartbeat since room sync is confirmed
       if (joinHeartbeatTimer) {
         clearInterval(joinHeartbeatTimer);
@@ -1741,7 +1868,11 @@
 
     // Host started the game
     else if (data.type === 'START_GAME') {
-      state.players = data.players || state.players;
+      if (data.players && data.players.length > 0) {
+        state.players = data.players;
+      }
+      healMyPlayerId();
+      state.currentTurnIndex = (typeof data.currentTurnIndex === 'number') ? data.currentTurnIndex : 0;
       setupNewBoard();
       showScreen('game');
       Sound.join();
@@ -1751,14 +1882,82 @@
     // A player made a move
     else if (data.type === 'PLAYER_MOVE') {
       if (data.playerId !== state.myPlayerId) {
-        markNumber(data.number, 'friend', data.playerName, true);
-        Sound.friendPick();
-        showToast(`🟡 ${data.playerName} selected ${data.number}`, 'toast-yellow');
-        checkGameWin();
-        if (!state.winner) {
+        healMyPlayerId();
+
+        // 1. Deduplicate by moveId
+        if (data.moveId && processedMoveIds.has(data.moveId)) {
+          return;
+        }
+        if (data.moveId) {
+          processedMoveIds.add(data.moveId);
+        }
+
+        // 2. Check if number was already picked
+        const alreadyPicked = state.selectionsHistory.some(h => h.number === data.number) ||
+                              Object.values(state.markedCells).some(m => m.number === data.number);
+
+        if (!alreadyPicked) {
+          markNumber(data.number, 'friend', data.playerName, true);
+          Sound.friendPick();
+          showToast(`🟡 ${data.playerName} selected ${data.number}`, 'toast-yellow');
+          checkGameWin();
+        }
+
+        // 3. Synchronize turn index directly and authoritatively
+        if (typeof data.nextTurnIndex === 'number' && data.nextTurnIndex < state.players.length) {
+          state.currentTurnIndex = data.nextTurnIndex;
+        } else if (data.nextPlayerId) {
+          const pIdx = state.players.findIndex(p => p.id === data.nextPlayerId);
+          if (pIdx !== -1) {
+            state.currentTurnIndex = pIdx;
+          } else {
+            advanceTurn();
+          }
+        } else {
           advanceTurn();
         }
+
+        updateTurnDisplay();
+        checkBotTurn();
       }
+    }
+
+    // Turn force unstick / sync
+    else if (data.type === 'SYNC_TURN_FORCE') {
+      healMyPlayerId();
+      if (typeof data.newTurnIndex === 'number' && data.newTurnIndex < state.players.length) {
+        state.currentTurnIndex = data.newTurnIndex;
+      } else {
+        advanceTurn();
+      }
+      updateTurnDisplay();
+      showToast(`🔄 Turn synchronized by ${data.byPlayer || 'player'}`, 'toast-green');
+      checkBotTurn();
+    }
+
+    // Request full game turn sync from Host
+    else if (data.type === 'SYNC_REQUEST') {
+      if (state.isHost) {
+        broadcastMessage({
+          type: 'GAME_SYNC_STATE',
+          roomCode: state.roomCode,
+          currentTurnIndex: state.currentTurnIndex,
+          players: state.players
+        });
+      }
+    }
+
+    // Receive full game turn sync state
+    else if (data.type === 'GAME_SYNC_STATE') {
+      if (data.players && data.players.length) {
+        state.players = data.players;
+      }
+      healMyPlayerId();
+      if (typeof data.currentTurnIndex === 'number' && data.currentTurnIndex < state.players.length) {
+        state.currentTurnIndex = data.currentTurnIndex;
+      }
+      updateTurnDisplay();
+      checkBotTurn();
     }
 
     // Game won by someone
@@ -1780,7 +1979,12 @@
     else if (data.type === 'PLAYER_LEFT') {
       state.players = state.players.filter(p => p.id !== data.playerId);
       showToast(`${data.playerName} left the room.`, 'toast-yellow');
-      if (state.currentScreen === 'waiting') {
+      if (state.currentTurnIndex >= state.players.length) {
+        state.currentTurnIndex = 0;
+      }
+      if (state.currentScreen === 'game') {
+        updateTurnDisplay();
+      } else if (state.currentScreen === 'waiting') {
         renderWaitingRoom();
       }
     }
@@ -2553,9 +2757,18 @@
       broadcastMessage({
         type: 'START_GAME',
         roomCode: state.roomCode,
-        players: state.players
+        players: state.players,
+        currentTurnIndex: 0
       });
     });
+
+    // --- Turn Sync & Unstick ---
+    if (el.btnSyncTurn) {
+      el.btnSyncTurn.addEventListener('click', () => {
+        Sound.click();
+        triggerTurnSync();
+      });
+    }
 
     // --- Game Navigation & Sub Views ---
     el.btnLeaveGame.addEventListener('click', () => {

@@ -1824,7 +1824,7 @@ body {
 
 /* Turn Banner */
 .turn-banner {
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 700;
@@ -1832,10 +1832,53 @@ body {
   margin-bottom: 10px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 8px;
   transition: all var(--transition-normal);
   letter-spacing: 0.2px;
+}
+
+.turn-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.btn-sync-turn {
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-sync-turn:hover {
+  background: rgba(0, 0, 0, 0.16);
+  transform: scale(1.04);
+}
+
+.btn-sync-turn:active {
+  transform: scale(0.96);
+}
+
+[data-theme="dark"] .btn-sync-turn {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .btn-sync-turn:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .turn-banner.your-turn {

@@ -453,8 +453,11 @@
           <div class="game-board-column">
             <!-- Turn Announcement Banner (Screens 9 & 10) -->
             <div class="turn-banner your-turn" id="turn-announcement-banner">
-              <span id="turn-icon">🟢</span>
-              <span id="turn-text">Your Turn! Pick a number on the board.</span>
+              <div class="turn-banner-main">
+                <span id="turn-icon">🟢</span>
+                <span id="turn-text">Your Turn! Pick a number on the board.</span>
+              </div>
+              <button type="button" class="btn-sync-turn" id="btn-sync-turn" title="Sync turn or unlock if stuck">🔄 Sync Turn</button>
             </div>
 
             <!-- Next Number Ball & BINGO Letter Badges -->
