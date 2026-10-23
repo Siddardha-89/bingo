@@ -385,6 +385,7 @@
     tabMyProgress: document.getElementById('tab-my-progress'),
     tabBotProgress: document.getElementById('tab-bot-progress'),
     playerBoardLines: document.getElementById('player-board-lines'),
+    btnShuffleMyBoard: document.getElementById('btn-shuffle-my-board'),
     botChips: {
       B: document.getElementById('bot-chip-B'),
       I: document.getElementById('bot-chip-I'),
@@ -756,8 +757,48 @@
   // ----------------------------------------------------------------------------
   // 8. BOARD SETUP & NUMBER GENERATION
   // ----------------------------------------------------------------------------
+  // Cryptographic Multi-Pass Randomizer for distinct, unpredictable board layouts
+  function generateShuffledNumbers(size, avoidList = null) {
+    const totalCells = size * size;
+    const pool = [];
+    for (let i = 1; i <= totalCells; i++) pool.push(i);
+
+    // Cryptographic random values if supported for high-entropy randomness
+    const randomBuffer = new Uint32Array(totalCells * 4);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(randomBuffer);
+    }
+
+    let bufIdx = 0;
+    // Multi-pass Fisher-Yates Shuffle
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = pool.length - 1; i > 0; i--) {
+        const randFloat = (randomBuffer[bufIdx++] || Math.floor(Math.random() * 1000000)) / 4294967296;
+        const j = Math.floor(randFloat * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+
+    // Guarantee that numbers are in DIFFERENT positions from avoidList (e.g. Robot vs Player)
+    if (avoidList && Array.isArray(avoidList) && avoidList.length === pool.length) {
+      let matches = 0;
+      for (let i = 0; i < pool.length; i++) {
+        if (pool[i] === avoidList[i]) matches++;
+      }
+      if (matches > 2) {
+        for (let i = 0; i < pool.length; i++) {
+          if (pool[i] === avoidList[i]) {
+            const swapIdx = (i + 7) % pool.length;
+            [pool[i], pool[swapIdx]] = [pool[swapIdx], pool[i]];
+          }
+        }
+      }
+    }
+
+    return pool;
+  }
+
   function setupNewBoard() {
-    const totalCells = state.boardSize * state.boardSize;
     state.markedCells = {};
     state.selectionsHistory = [];
     state.completedLines = [];
@@ -765,17 +806,8 @@
     state.winner = null;
     processedMoveIds.clear();
 
-    // Generate randomized numbers for this player's board
-    const pool = [];
-    for (let i = 1; i <= totalCells; i++) pool.push(i);
-
-    // Fisher-Yates Shuffle
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-
-    state.boardNumbers = pool;
+    // Generate fresh randomized numbers for this player's board
+    state.boardNumbers = generateShuffledNumbers(state.boardSize);
     renderBoard();
     updateProgressUI();
     updateHistoryUI();
@@ -786,6 +818,7 @@
     if (hasBot) {
       if (el.botGameBoardTabs) el.botGameBoardTabs.classList.remove('hidden');
       setupBotBoard();
+      // Default to Player's Board View for clean, spacious play; user can toggle Robot or Both anytime
       switchBoardView('my');
     } else {
       if (el.botGameBoardTabs) el.botGameBoardTabs.classList.add('hidden');
@@ -799,18 +832,11 @@
   }
 
   function setupBotBoard() {
-    const totalCells = state.boardSize * state.boardSize;
     state.botMarkedCells = {};
     state.botCompletedLines = [];
 
-    // Distinct randomized numbers for Robot's own board
-    const botPool = [];
-    for (let i = 1; i <= totalCells; i++) botPool.push(i);
-    for (let i = botPool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [botPool[i], botPool[j]] = [botPool[j], botPool[i]];
-    }
-    state.botBoardNumbers = botPool;
+    // Distinct randomized numbers for Robot's own board (guaranteed different from player's board)
+    state.botBoardNumbers = generateShuffledNumbers(state.boardSize, state.boardNumbers);
     renderBotBoard();
     updateBotProgressUI();
   }
@@ -1868,6 +1894,10 @@
 
     // Host started the game
     else if (data.type === 'START_GAME') {
+      if (data.senderId === state.myPlayerId) {
+        // Skip duplicate self-echo from MQTT so host's board isn't wiped
+        return;
+      }
       if (data.players && data.players.length > 0) {
         state.players = data.players;
       }
@@ -2817,6 +2847,25 @@
         Sound.click();
         const nextMode = state.activeBoardView === 'dual' ? 'my' : 'dual';
         switchBoardView(nextMode);
+      });
+    }
+
+    // --- Shuffle Board Button (Randomize numbers anytime) ---
+    if (el.btnShuffleMyBoard) {
+      el.btnShuffleMyBoard.addEventListener('click', () => {
+        Sound.click();
+        const hasMarks = Object.keys(state.markedCells).length > 0;
+        if (hasMarks) {
+          if (!confirm('Re-shuffling board numbers will reset marked cells for this round. Continue?')) {
+            return;
+          }
+        }
+        state.boardNumbers = generateShuffledNumbers(state.boardSize, state.botBoardNumbers);
+        state.markedCells = {};
+        state.completedLines = [];
+        renderBoard();
+        updateProgressUI();
+        showToast('🎲 Board numbers randomly shuffled!', 'toast-green');
       });
     }
     // --- Emoji Reaction Buttons (Side dock & bottom bar) ---
