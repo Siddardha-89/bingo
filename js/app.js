@@ -760,36 +760,48 @@
   // Cryptographic Multi-Pass Randomizer for distinct, unpredictable board layouts
   function generateShuffledNumbers(size, avoidList = null) {
     const totalCells = size * size;
-    const pool = [];
+    let pool = [];
     for (let i = 1; i <= totalCells; i++) pool.push(i);
 
     // Cryptographic random values if supported for high-entropy randomness
-    const randomBuffer = new Uint32Array(totalCells * 4);
+    const randomBuffer = new Uint32Array(totalCells * 8);
     if (window.crypto && window.crypto.getRandomValues) {
       window.crypto.getRandomValues(randomBuffer);
     }
 
     let bufIdx = 0;
-    // Multi-pass Fisher-Yates Shuffle
-    for (let pass = 0; pass < 3; pass++) {
+    const getRandom = (max) => {
+      if (bufIdx < randomBuffer.length) {
+        return randomBuffer[bufIdx++] % max;
+      }
+      return Math.floor(Math.random() * max);
+    };
+
+    // Multi-pass Fisher-Yates Shuffle (5 deep passes)
+    for (let pass = 0; pass < 5; pass++) {
       for (let i = pool.length - 1; i > 0; i--) {
-        const randFloat = (randomBuffer[bufIdx++] || Math.floor(Math.random() * 1000000)) / 4294967296;
-        const j = Math.floor(randFloat * (i + 1));
+        const j = getRandom(i + 1);
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
     }
 
-    // Guarantee that numbers are in DIFFERENT positions from avoidList (e.g. Robot vs Player)
+    // Strict Derangement against avoidList (e.g. Robot Board vs Player Board)
+    // Guarantees that NOT A SINGLE NUMBER is in the same cell position between the two boards
     if (avoidList && Array.isArray(avoidList) && avoidList.length === pool.length) {
-      let matches = 0;
       for (let i = 0; i < pool.length; i++) {
-        if (pool[i] === avoidList[i]) matches++;
-      }
-      if (matches > 2) {
-        for (let i = 0; i < pool.length; i++) {
-          if (pool[i] === avoidList[i]) {
-            const swapIdx = (i + 7) % pool.length;
-            [pool[i], pool[swapIdx]] = [pool[swapIdx], pool[i]];
+        if (pool[i] === avoidList[i]) {
+          // Find another slot j where swapping resolves the conflict cleanly
+          let swapped = false;
+          for (let j = 0; j < pool.length; j++) {
+            if (i !== j && pool[j] !== avoidList[i] && pool[i] !== avoidList[j]) {
+              [pool[i], pool[j]] = [pool[j], pool[i]];
+              swapped = true;
+              break;
+            }
+          }
+          if (!swapped) {
+            const fallbackIdx = (i + 13) % pool.length;
+            [pool[i], pool[fallbackIdx]] = [pool[fallbackIdx], pool[i]];
           }
         }
       }
