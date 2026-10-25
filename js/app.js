@@ -391,6 +391,9 @@
     waitingMyDisplayName: document.getElementById('waiting-my-display-name'),
     myProfileAvatarLetter: document.getElementById('my-profile-avatar-letter'),
     btnTriggerNameChange: document.getElementById('btn-trigger-name-change'),
+    inputWaitingQuickName: document.getElementById('input-waiting-quick-name'),
+    btnSaveWaitingQuickName: document.getElementById('btn-save-waiting-quick-name'),
+    btnIngameEditName: document.getElementById('btn-ingame-edit-name'),
     modalChangeName: document.getElementById('modal-change-name'),
     btnCloseNameModal: document.getElementById('btn-close-name-modal'),
     btnCancelNameModal: document.getElementById('btn-cancel-name-modal'),
@@ -736,6 +739,9 @@
     if (el.myProfileAvatarLetter) {
       el.myProfileAvatarLetter.textContent = state.playerAvatar || '🥷';
     }
+    if (el.inputWaitingQuickName && document.activeElement !== el.inputWaitingQuickName) {
+      el.inputWaitingQuickName.value = (state.playerName === 'USER' ? '' : state.playerName);
+    }
 
     // 1. Render actual joined players
     state.players.forEach((p, index) => {
@@ -758,7 +764,7 @@
         <div class="player-status-wrap">
           ${isMe ? `
             <button type="button" class="btn-edit-inline-name" title="Change your name">
-              ✏️ Edit
+              ✏️ Change Name
             </button>
           ` : `
             <span class="player-status-tag ${p.isHost ? 'host' : 'ready'}">
@@ -1978,11 +1984,6 @@
     if (data.type === 'PLAYER_JOINED') {
       const incoming = data.player;
       if (incoming && incoming.id !== state.myPlayerId) {
-        // If incoming player has default name that clashes with ours, assign a distinct name
-        if (incoming.name && state.playerName && incoming.name.trim().toLowerCase() === state.playerName.trim().toLowerCase()) {
-          incoming.name = 'Player ' + Math.floor(10 + Math.random() * 90);
-        }
-
         const existingIdx = state.players.findIndex(p => p.id === incoming.id);
 
         if (existingIdx !== -1) {
@@ -2548,12 +2549,8 @@
 
     const storedName = localStorage.getItem('bingo_user_name');
     const inputVal = el.inputJoinName ? el.inputJoinName.value.trim() : '';
-    let name = inputVal || storedName || state.playerName;
-    if (!name || name === 'USER' || name === 'Player') {
-      name = 'Player ' + Math.floor(10 + Math.random() * 90);
-    }
+    let name = inputVal || storedName || 'USER';
     state.playerName = name;
-    localStorage.setItem('bingo_user_name', state.playerName);
 
     state.roomCode = cleanCode;
     state.isHost = false;
@@ -3037,6 +3034,35 @@
       });
     }
 
+    // Quick Name Save in Waiting Room
+    if (el.btnSaveWaitingQuickName && el.inputWaitingQuickName) {
+      const handleSaveQuick = () => {
+        const val = el.inputWaitingQuickName.value.trim();
+        if (val) {
+          Sound.click();
+          changePlayerProfile(val, state.playerAvatar || '🥷');
+        } else {
+          showToast('Please enter a name first', 'toast-yellow');
+        }
+      };
+
+      el.btnSaveWaitingQuickName.addEventListener('click', handleSaveQuick);
+      el.inputWaitingQuickName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleSaveQuick();
+        }
+      });
+    }
+
+    // In-Game Change Name button
+    if (el.btnIngameEditName) {
+      el.btnIngameEditName.addEventListener('click', () => {
+        Sound.click();
+        openNameModal();
+      });
+    }
+
     // --- Home Navigation ---
     el.btnGotoCreate.addEventListener('click', () => {
       Sound.click();
@@ -3212,9 +3238,8 @@
       if (name) {
         state.playerName = name;
         localStorage.setItem('bingo_user_name', state.playerName);
-      } else if (!state.playerName || state.playerName === 'USER' || state.playerName === 'Player') {
-        state.playerName = 'Player ' + Math.floor(10 + Math.random() * 90);
-        localStorage.setItem('bingo_user_name', state.playerName);
+      } else {
+        state.playerName = localStorage.getItem('bingo_user_name') || 'USER';
       }
 
       if (!code) {
@@ -3547,6 +3572,10 @@
     state.theme = savedTheme;
     document.documentElement.setAttribute('data-theme', savedTheme);
     el.btnThemeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+
+    // Ensure default name is always USER unless user saved a custom profile
+    state.playerName = localStorage.getItem('bingo_user_name') || 'USER';
+    state.playerAvatar = localStorage.getItem('bingo_user_avatar') || '🥷';
 
     // Initialize Host player
     state.players = [{

@@ -80,9 +80,10 @@
         <!-- Dark Mode Toggle (Screen 15) -->
         <button type="button" class="icon-btn" id="btn-theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
         <!-- User Login / Profile -->
-        <button type="button" class="login-btn" id="btn-login-modal" title="Customize Profile & Avatar">
+        <button type="button" class="login-btn" id="btn-login-modal" title="Click to Change Your Name & Avatar">
           <span id="header-user-avatar" class="header-avatar-badge">🥷</span>
           <span id="header-user-name">USER</span>
+          <span class="header-edit-badge" title="Change Name">✏️ Edit</span>
         </button>
       </div>
     </header>
@@ -418,12 +419,20 @@
           <div class="my-profile-left">
             <span class="my-profile-avatar" id="my-profile-avatar-letter">🥷</span>
             <div class="my-profile-details">
-              <span class="my-profile-label">Your Profile</span>
+              <span class="my-profile-label">Your Name (Tap to Edit)</span>
               <span class="my-profile-name" id="waiting-my-display-name">USER</span>
             </div>
           </div>
-          <button type="button" class="btn-change-name" id="btn-trigger-name-change">
-            <span>🎭</span> Avatar &amp; Name
+          <button type="button" class="btn-change-name" id="btn-trigger-name-change" title="Change Avatar & Name">
+            <span>✏️</span> Change Name
+          </button>
+        </div>
+
+        <!-- Quick Name Input for Instant 1-Tap Renaming without opening modals -->
+        <div class="quick-name-edit-bar" id="quick-name-edit-bar">
+          <input type="text" id="input-waiting-quick-name" class="quick-name-input" placeholder="Type your name (e.g. Rahul, Priya)..." maxlength="20">
+          <button type="button" class="btn-quick-name-save" id="btn-save-waiting-quick-name">
+            Save Name ✓
           </button>
         </div>
 
@@ -535,6 +544,7 @@
                     <span class="board-tag-title">Your Board (Tap to pick)</span>
                   </div>
                   <div class="board-tag-right">
+                    <button type="button" class="btn-ingame-edit-name" id="btn-ingame-edit-name" title="Change your name anytime">✏️ Name</button>
                     <button type="button" class="btn-shuffle-board" id="btn-shuffle-my-board" title="Shuffle numbers randomly">🎲 Shuffle</button>
                     <span class="board-tag-count" id="player-board-lines">0/5 Lines</span>
                   </div>
