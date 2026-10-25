@@ -70,6 +70,11 @@
           <span class="net-status-dot"></span>
           <span class="net-status-text" id="net-status-text">Online</span>
         </div>
+        <!-- Room Chat Toggle Button -->
+        <button type="button" class="icon-btn header-chat-btn" id="btn-header-chat" title="Open Room Chat">
+          <span>💬</span>
+          <span class="chat-count-pill hidden" id="header-chat-badge">0</span>
+        </button>
         <!-- Sound FX Toggle -->
         <button type="button" class="icon-btn" id="btn-sound-toggle" title="Toggle Sound FX">🔊</button>
         <!-- Dark Mode Toggle (Screen 15) -->
@@ -120,6 +125,10 @@
           <div class="feature-card" id="btn-modal-multiplayer">
             <div class="feature-icon-wrapper">🎮</div>
             <div class="feature-label">Multiplayer</div>
+          </div>
+          <div class="feature-card feature-chat-card" id="btn-home-chat">
+            <div class="feature-icon-wrapper">💬</div>
+            <div class="feature-label">Live Chat</div>
           </div>
         </div>
 
@@ -199,7 +208,7 @@
         <div class="created-card vip-pass-card">
           <div class="pass-punch-hole left"></div>
           <div class="pass-punch-hole right"></div>
-          
+
           <div class="success-badge">✓</div>
           <h2 class="created-title">Room Created!</h2>
           <p class="created-subtitle">Your multiplayer room is ready! Jump in or invite your friends.</p>
@@ -431,6 +440,9 @@
           <div class="waiting-status-box" id="waiting-status-text">
             <span>⏳</span> Waiting for players to join...
           </div>
+          <button type="button" class="btn btn-secondary btn-full-width" id="btn-waiting-chat">
+            <span>💬</span> Room Chat <span class="chat-count-pill hidden" id="waiting-chat-badge">0</span>
+          </button>
           <button type="button" class="btn btn-secondary btn-full-width" id="btn-add-test-bot">
             🤖 Add Bot (for solo testing)
           </button>
@@ -573,10 +585,13 @@
             <!-- Bottom Game Action Tabs -->
             <div class="game-bottom-actions">
               <button type="button" class="game-sub-btn" id="btn-open-history">
-                <span>📜</span> Live History (<span id="history-badge-count">0</span>)
+                <span>📜</span> History (<span id="history-badge-count">0</span>)
               </button>
               <button type="button" class="game-sub-btn" id="btn-open-progress">
                 <span>📊</span> Lines (<span id="lines-badge-count">0/5</span>)
+              </button>
+              <button type="button" class="game-sub-btn btn-game-chat-action" id="btn-game-chat">
+                <span>💬</span> Chat <span class="chat-count-pill hidden" id="chat-in-game-badge">0</span>
               </button>
             </div>
 
@@ -739,6 +754,83 @@
     <div class="toast-notification" id="toast-notify">
       <span id="toast-icon">🟢</span>
       <span id="toast-message">USER (You) selected 15</span>
+    </div>
+
+    <!-- =====================================================================
+         FLOATING ROOM CHAT FAB & LIVE POPUP (Always available in Room & Game)
+         ===================================================================== -->
+    <!-- Floating Chat FAB Button (Available right from the start) -->
+    <button type="button" class="floating-chat-fab" id="btn-floating-chat" title="Open Room Chat">
+      <span class="chat-fab-bubble">💬</span>
+      <span class="chat-fab-label">Chat</span>
+      <span class="chat-fab-badge hidden" id="chat-fab-badge">0</span>
+    </button>
+
+    <!-- Floating Live Chat Notification Bubble (Pops when friends message while chat is closed) -->
+    <div class="floating-chat-popup hidden" id="floating-chat-popup">
+      <span class="popup-avatar" id="popup-avatar">🥷</span>
+      <div class="popup-content">
+        <div class="popup-sender" id="popup-sender">Player</div>
+        <div class="popup-text" id="popup-text">Message</div>
+      </div>
+      <button type="button" class="popup-close-btn" id="btn-close-popup" title="Dismiss">✕</button>
+    </div>
+
+    <!-- Real-time Room Chat Slide-out Drawer -->
+    <div class="chat-drawer-overlay hidden" id="chat-drawer-overlay">
+      <div class="chat-drawer" id="chat-drawer">
+        <!-- Header -->
+        <div class="chat-drawer-header">
+          <div class="chat-header-info">
+            <span class="chat-header-icon">💬</span>
+            <div class="chat-header-titles">
+              <h3 class="chat-drawer-title">Room Chat</h3>
+              <span class="chat-drawer-subtitle">
+                Room <strong id="chat-header-room">#B7K9Q2</strong> • <span id="chat-header-players">2 Players</span>
+              </span>
+            </div>
+          </div>
+          <button type="button" class="chat-drawer-close" id="btn-close-chat" title="Close Chat">✕</button>
+        </div>
+
+        <!-- Quick Chat Chips (1-Tap Messages & Taunts) -->
+        <div class="chat-quick-strip" id="chat-quick-strip">
+          <button type="button" class="quick-chip" data-msg="Good luck! 🍀">🍀 Good luck!</button>
+          <button type="button" class="quick-chip" data-msg="BINGO incoming! 🎯">🎯 BINGO soon!</button>
+          <button type="button" class="quick-chip" data-msg="Your turn! ⏰">⏰ Your turn!</button>
+          <button type="button" class="quick-chip" data-msg="Nice move! 🔥">🔥 Nice move!</button>
+          <button type="button" class="quick-chip" data-msg="Hahaha! 😂">😂 Hahaha!</button>
+          <button type="button" class="quick-chip" data-msg="Thinking... 🤔">🤔 Thinking...</button>
+          <button type="button" class="quick-chip" data-msg="I'm gonna win! 👑">👑 I'm gonna win!</button>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="chat-messages-container" id="chat-messages-container">
+          <div class="chat-system-banner">
+            <span>🔒 Live room chat for <strong id="chat-system-room">B7K9Q2</strong>. Say hi to friends! 👋</span>
+          </div>
+        </div>
+
+        <!-- Quick Emoji Strip -->
+        <div class="chat-emojis-bar">
+          <button type="button" class="chat-emoji-btn" data-emoji="😂">😂</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="🔥">🔥</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="🎯">🎯</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="👑">👑</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="👏">👏</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="😎">😎</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="😱">😱</button>
+          <button type="button" class="chat-emoji-btn" data-emoji="❤️">❤️</button>
+        </div>
+
+        <!-- Input Form -->
+        <form class="chat-input-form" id="chat-form">
+          <input type="text" id="chat-input" class="chat-input-field" placeholder="Type a message in this room..." maxlength="120" autocomplete="off">
+          <button type="submit" class="chat-send-btn" id="btn-send-chat" title="Send message">
+            <span>➤</span>
+          </button>
+        </form>
+      </div>
     </div>
 
   </div>

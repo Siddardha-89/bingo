@@ -50,7 +50,10 @@
     activeBoardView: 'my', // 'my' | 'bot' | 'dual'
     gameActive: false,
     winner: null,
-    historyFilter: 'all'
+    historyFilter: 'all',
+    chatMessages: [],
+    chatUnreadCount: 0,
+    isChatOpen: false
   };
 
   // ----------------------------------------------------------------------------
@@ -138,6 +141,9 @@
     if (!mqttClient || !roomCode) return;
     const cleanCode = roomCode.trim().toUpperCase();
     const newTopic = `bingo_rooms_live/${cleanCode}`;
+
+    // Reset and sync chat for the active room
+    resetRoomChat(cleanCode);
 
     if (currentSubscribedTopic && currentSubscribedTopic !== newTopic) {
       try { mqttClient.unsubscribe(currentSubscribedTopic); } catch (e) {}
@@ -272,6 +278,16 @@
       const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
       notes.forEach((n, i) => playSoftChime(n, 0.28, 0.06, i * 0.11));
       triggerHaptic([25, 40, 30, 50]);
+    },
+    chatSend: () => {
+      playSoftTap(0.04);
+      playSoftChime(659.25, 0.10, 0.04, 0.02);
+      triggerHaptic(8);
+    },
+    chatReceive: () => {
+      playSoftChime(587.33, 0.12, 0.05, 0);
+      playSoftChime(880.00, 0.16, 0.06, 0.06);
+      triggerHaptic([10, 20, 10]);
     }
   };
 
@@ -456,7 +472,36 @@
 
     // Live in-game history elements
     inGameHistoryList: document.getElementById('in-game-history-list'),
-    liveHistoryCounter: document.getElementById('live-history-counter')
+    liveHistoryCounter: document.getElementById('live-history-counter'),
+
+    // Room Chat Elements
+    btnFloatingChat: document.getElementById('btn-floating-chat'),
+    chatFabBadge: document.getElementById('chat-fab-badge'),
+    btnHeaderChat: document.getElementById('btn-header-chat'),
+    headerChatBadge: document.getElementById('header-chat-badge'),
+    btnHomeChat: document.getElementById('btn-home-chat'),
+    btnWaitingChat: document.getElementById('btn-waiting-chat'),
+    waitingChatBadge: document.getElementById('waiting-chat-badge'),
+    btnGameChat: document.getElementById('btn-game-chat'),
+    chatInGameBadge: document.getElementById('chat-in-game-badge'),
+    chatDrawerOverlay: document.getElementById('chat-drawer-overlay'),
+    chatDrawer: document.getElementById('chat-drawer'),
+    btnCloseChat: document.getElementById('btn-close-chat'),
+    chatHeaderRoom: document.getElementById('chat-header-room'),
+    chatHeaderPlayers: document.getElementById('chat-header-players'),
+    chatSystemRoom: document.getElementById('chat-system-room'),
+    chatMessagesContainer: document.getElementById('chat-messages-container'),
+    chatQuickStrip: document.getElementById('chat-quick-strip'),
+    chatForm: document.getElementById('chat-form'),
+    chatInput: document.getElementById('chat-input'),
+    btnSendChat: document.getElementById('btn-send-chat'),
+    floatingChatPopup: document.getElementById('floating-chat-popup'),
+    popupAvatar: document.getElementById('popup-avatar'),
+    popupSender: document.getElementById('popup-sender'),
+    popupText: document.getElementById('popup-text'),
+    btnClosePopup: document.getElementById('btn-close-popup'),
+    chatEmojiBtns: document.querySelectorAll('.chat-emoji-btn'),
+    quickChips: document.querySelectorAll('.quick-chip')
   };
 
   // ----------------------------------------------------------------------------
@@ -512,6 +557,9 @@
     if (screenKey === 'waiting') {
       renderWaitingRoom();
     }
+
+    // Update floating chat visibility for active room screens
+    updateChatVisibility();
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -625,6 +673,11 @@
     el.gameSizeBadge.textContent = `${state.boardSize} × ${state.boardSize}`;
     el.gamePlayersBadge.textContent = `👥 ${state.players.length}/${state.playerLimit}`;
     el.waitingPlayerCount.textContent = `${state.players.length}/${state.playerLimit}`;
+
+    // Update Chat Drawer Room header info
+    if (el.chatHeaderRoom) el.chatHeaderRoom.textContent = '#' + code;
+    if (el.chatSystemRoom) el.chatSystemRoom.textContent = code;
+    if (el.chatHeaderPlayers) el.chatHeaderPlayers.textContent = `${state.players.length} Players`;
 
     // Render QR Code for instant Mobile camera joining
     renderRoomQrCode(url);
@@ -2017,6 +2070,13 @@
       }
     }
 
+    // A player sent a room chat message
+    else if (data.type === 'CHAT_MESSAGE') {
+      if (data.senderId !== state.myPlayerId) {
+        handleIncomingChatMessage(data);
+      }
+    }
+
     // Player left
     else if (data.type === 'PLAYER_LEFT') {
       state.players = state.players.filter(p => p.id !== data.playerId);
@@ -2412,6 +2472,352 @@
           openNameModal();
         }
       }, 500);
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // 14.8. ROOM REALTIME CHAT SYSTEM (In-game & Waiting Room)
+  // ----------------------------------------------------------------------------
+  let popupDismissTimer = null;
+  let botChatTimer = null;
+
+  function updateChatVisibility() {
+    if (!el.btnFloatingChat) return;
+    // Chat is available right from the start (Home, Create, Join, Waiting, Game)!
+    if (state.currentScreen === 'intro') {
+      el.btnFloatingChat.classList.add('hidden');
+    } else {
+      el.btnFloatingChat.classList.remove('hidden');
+    }
+  }
+
+  function updateChatBadges() {
+    const count = state.chatUnreadCount;
+    const badges = [el.chatFabBadge, el.headerChatBadge, el.waitingChatBadge, el.chatInGameBadge];
+    badges.forEach(b => {
+      if (!b) return;
+      if (count > 0) {
+        b.textContent = count > 99 ? '99+' : count;
+        b.classList.remove('hidden');
+      } else {
+        b.classList.add('hidden');
+      }
+    });
+  }
+
+  function openChatDrawer() {
+    if (!el.chatDrawerOverlay) return;
+    Sound.click();
+    state.isChatOpen = true;
+    state.chatUnreadCount = 0;
+    updateChatBadges();
+
+    // Dismiss floating mini popup
+    if (el.floatingChatPopup) el.floatingChatPopup.classList.add('hidden');
+
+    el.chatDrawerOverlay.classList.remove('hidden');
+    if (el.chatHeaderRoom) el.chatHeaderRoom.textContent = '#' + state.roomCode;
+    if (el.chatSystemRoom) el.chatSystemRoom.textContent = state.roomCode;
+    if (el.chatHeaderPlayers) el.chatHeaderPlayers.textContent = `${state.players.length} Players`;
+
+    setTimeout(() => {
+      if (el.chatMessagesContainer) {
+        el.chatMessagesContainer.scrollTop = el.chatMessagesContainer.scrollHeight;
+      }
+      if (el.chatInput) el.chatInput.focus();
+    }, 50);
+  }
+
+  function closeChatDrawer() {
+    if (!el.chatDrawerOverlay) return;
+    Sound.click();
+    state.isChatOpen = false;
+    el.chatDrawerOverlay.classList.add('hidden');
+  }
+
+  function resetRoomChat(code) {
+    state.chatMessages = [];
+    state.chatUnreadCount = 0;
+    updateChatBadges();
+    if (el.chatHeaderRoom) el.chatHeaderRoom.textContent = '#' + code;
+    if (el.chatSystemRoom) el.chatSystemRoom.textContent = code;
+    if (el.chatMessagesContainer) {
+      el.chatMessagesContainer.innerHTML = `
+        <div class="chat-system-banner">
+          <span>🔒 Live room chat for <strong>${escapeHtml(code)}</strong>. Say hi to friends! 👋</span>
+        </div>
+      `;
+    }
+  }
+
+  function sendChatMessage(text) {
+    if (!text || !text.trim()) return;
+    const cleanText = text.trim();
+    if (!state.roomCode) {
+      showToast('⚠️ Please join a room to chat!', 'toast-yellow');
+      return;
+    }
+
+    const msg = {
+      id: 'c_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      roomCode: state.roomCode,
+      senderId: state.myPlayerId,
+      senderName: state.playerName || 'Player',
+      senderAvatar: state.playerAvatar || '🥷',
+      text: cleanText,
+      timestamp: Date.now(),
+      isMe: true
+    };
+
+    state.chatMessages.push(msg);
+    renderSingleChatMessage(msg);
+    Sound.chatSend();
+
+    // Broadcast message to all connected players in the room
+    broadcastMessage({
+      type: 'CHAT_MESSAGE',
+      roomCode: state.roomCode,
+      chatId: msg.id,
+      senderId: state.myPlayerId,
+      senderName: state.playerName,
+      senderAvatar: state.playerAvatar || '🥷',
+      text: cleanText,
+      timestamp: msg.timestamp
+    });
+
+    // If Robot AI bot is in the room, bot replies!
+    const bot = state.players.find(p => p.isBot);
+    if (bot) {
+      triggerBotChatReply(bot, cleanText);
+    }
+  }
+
+  function handleIncomingChatMessage(data) {
+    const msg = {
+      id: data.chatId || ('c_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)),
+      roomCode: data.roomCode,
+      senderId: data.senderId,
+      senderName: data.senderName || 'Friend',
+      senderAvatar: data.senderAvatar || '🎮',
+      text: data.text,
+      timestamp: data.timestamp || Date.now(),
+      isMe: false,
+      isBot: data.isBot || false
+    };
+
+    // Deduplicate
+    if (state.chatMessages.some(m => m.id === msg.id)) return;
+    state.chatMessages.push(msg);
+    renderSingleChatMessage(msg);
+    Sound.chatReceive();
+
+    if (!state.isChatOpen) {
+      state.chatUnreadCount++;
+      updateChatBadges();
+      showFloatingChatPopup(msg);
+    }
+  }
+
+  function showFloatingChatPopup(msg) {
+    if (!el.floatingChatPopup) return;
+    if (popupDismissTimer) clearTimeout(popupDismissTimer);
+
+    if (el.popupAvatar) el.popupAvatar.textContent = msg.senderAvatar || '💬';
+    if (el.popupSender) el.popupSender.textContent = msg.senderName;
+    if (el.popupText) el.popupText.textContent = msg.text;
+
+    el.floatingChatPopup.classList.remove('hidden');
+
+    popupDismissTimer = setTimeout(() => {
+      if (el.floatingChatPopup) el.floatingChatPopup.classList.add('hidden');
+    }, 4000);
+  }
+
+  function formatChatTime(ts) {
+    try {
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function renderSingleChatMessage(msg) {
+    if (!el.chatMessagesContainer) return;
+
+    const row = document.createElement('div');
+    const rowClass = msg.isMe ? 'chat-msg-row me' : (msg.isBot ? 'chat-msg-row bot' : 'chat-msg-row friend');
+    row.className = rowClass;
+
+    const timeStr = formatChatTime(msg.timestamp);
+    const safeText = escapeHtml(msg.text);
+
+    if (msg.isMe) {
+      row.innerHTML = `
+        <div class="chat-msg-bubble-wrap">
+          <div class="chat-msg-bubble">${safeText}</div>
+          <div class="chat-msg-time">${timeStr}</div>
+        </div>
+      `;
+    } else {
+      const botBadge = msg.isBot ? '<span class="bot-tag-chip">AI Bot</span>' : '';
+      row.innerHTML = `
+        <div class="chat-msg-avatar">${escapeHtml(msg.senderAvatar || '🎮')}</div>
+        <div class="chat-msg-bubble-wrap">
+          <div class="chat-msg-sender-name">${escapeHtml(msg.senderName)} ${botBadge}</div>
+          <div class="chat-msg-bubble">${safeText}</div>
+          <div class="chat-msg-time">${timeStr}</div>
+        </div>
+      `;
+    }
+
+    el.chatMessagesContainer.appendChild(row);
+    el.chatMessagesContainer.scrollTop = el.chatMessagesContainer.scrollHeight;
+  }
+
+  const BOT_CHAT_LINES = [
+    "Challenge accepted! Let's see your moves! 🎲",
+    "My quantum algorithms predict my BINGO is imminent! ⚡",
+    "Haha! You cannot defeat an AI trained on thousands of games! 🤖",
+    "Nice pick! But I've already prepared 5 lines ahead! 🧠",
+    "Calculating probability of your victory... 14.8% 😏",
+    "Your turn! Don't let the pressure get to you! ⏳",
+    "BINGO will be mine! 👑🔥",
+    "May the best algorithm win! 🚀",
+    "I have 100% battery and zero hesitation! 🔋⚡"
+  ];
+
+  function triggerBotChatReply(bot, userText) {
+    if (botChatTimer) clearTimeout(botChatTimer);
+    const delay = 900 + Math.random() * 1100;
+    botChatTimer = setTimeout(() => {
+      let reply = BOT_CHAT_LINES[Math.floor(Math.random() * BOT_CHAT_LINES.length)];
+      const lower = userText.toLowerCase();
+      if (userText.includes('?')) {
+        reply = "Processing query... Result: I am taking the crown! 👑";
+      } else if (lower.includes('luck') || userText.includes('🍀')) {
+        reply = "Luck is an illusion, I rely purely on probability! 🎲🤖";
+      } else if (lower.includes('haha') || userText.includes('😂')) {
+        reply = "Haha! Let's see who laughs when the 5th line connects! 🎯";
+      } else if (lower.includes('win') || userText.includes('👑')) {
+        reply = "Win? That's my programmed objective! Let's play! ⚡";
+      }
+
+      const botMsg = {
+        id: 'bot_c_' + Date.now(),
+        roomCode: state.roomCode,
+        senderId: bot.id,
+        senderName: bot.name || 'Robot (AI)',
+        senderAvatar: '🤖',
+        text: reply,
+        timestamp: Date.now(),
+        isMe: false,
+        isBot: true
+      };
+
+      state.chatMessages.push(botMsg);
+      renderSingleChatMessage(botMsg);
+      Sound.chatReceive();
+
+      if (!state.isChatOpen) {
+        state.chatUnreadCount++;
+        updateChatBadges();
+        showFloatingChatPopup(botMsg);
+      }
+    }, delay);
+  }
+
+  function initChatSystem() {
+    // Open drawer buttons (Available right from the start!)
+    if (el.btnFloatingChat) {
+      el.btnFloatingChat.addEventListener('click', openChatDrawer);
+    }
+    if (el.btnHeaderChat) {
+      el.btnHeaderChat.addEventListener('click', openChatDrawer);
+    }
+    if (el.btnHomeChat) {
+      el.btnHomeChat.addEventListener('click', openChatDrawer);
+    }
+    if (el.btnWaitingChat) {
+      el.btnWaitingChat.addEventListener('click', openChatDrawer);
+    }
+    if (el.btnGameChat) {
+      el.btnGameChat.addEventListener('click', openChatDrawer);
+    }
+
+    // Close drawer buttons
+    if (el.btnCloseChat) {
+      el.btnCloseChat.addEventListener('click', closeChatDrawer);
+    }
+    if (el.chatDrawerOverlay) {
+      el.chatDrawerOverlay.addEventListener('click', (e) => {
+        if (e.target === el.chatDrawerOverlay) {
+          closeChatDrawer();
+        }
+      });
+    }
+
+    // Floating popup interactions
+    if (el.floatingChatPopup) {
+      el.floatingChatPopup.addEventListener('click', (e) => {
+        if (e.target !== el.btnClosePopup && !el.btnClosePopup.contains(e.target)) {
+          openChatDrawer();
+        }
+      });
+    }
+    if (el.btnClosePopup) {
+      el.btnClosePopup.addEventListener('click', (e) => {
+        e.stopPropagation();
+        el.floatingChatPopup.classList.add('hidden');
+      });
+    }
+
+    // Chat form submit
+    if (el.chatForm) {
+      el.chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!el.chatInput) return;
+        const val = el.chatInput.value;
+        if (val && val.trim()) {
+          sendChatMessage(val);
+          el.chatInput.value = '';
+          el.chatInput.focus();
+        }
+      });
+    }
+
+    // Quick chips
+    if (el.quickChips) {
+      el.quickChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          const msg = chip.getAttribute('data-msg');
+          if (msg) {
+            sendChatMessage(msg);
+          }
+        });
+      });
+    }
+
+    // Quick emojis
+    if (el.chatEmojiBtns) {
+      el.chatEmojiBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const emoji = btn.getAttribute('data-emoji');
+          if (!emoji) return;
+          if (el.chatInput) {
+            el.chatInput.value += emoji;
+            el.chatInput.focus();
+          } else {
+            sendChatMessage(emoji);
+          }
+        });
+      });
     }
   }
 
@@ -3023,6 +3429,7 @@
 
     updateRoomDetails();
     setupEventListeners();
+    initChatSystem();
     initMqtt();
     initIntro();
   }
