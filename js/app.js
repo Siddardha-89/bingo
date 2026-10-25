@@ -732,22 +732,11 @@
     updateRoomDetails();
     el.waitingPlayersContainer.innerHTML = '';
 
-    // Update player's own profile strip in waiting room
-    if (el.waitingMyDisplayName) {
-      el.waitingMyDisplayName.textContent = state.playerName;
-    }
-    if (el.myProfileAvatarLetter) {
-      el.myProfileAvatarLetter.textContent = state.playerAvatar || '🥷';
-    }
-    if (el.inputWaitingQuickName && document.activeElement !== el.inputWaitingQuickName) {
-      el.inputWaitingQuickName.value = (state.playerName === 'USER' ? '' : state.playerName);
-    }
-
     // 1. Render actual joined players
     state.players.forEach((p, index) => {
       const isMe = p.id === state.myPlayerId;
       const playerItem = document.createElement('div');
-      playerItem.className = 'player-item' + (!isMe ? ' player-connected-card' : '');
+      playerItem.className = 'player-item' + (!isMe ? ' player-connected-card' : ' my-player-item');
 
       const avatarLetter = (p.name[0] || 'U').toUpperCase();
       const avatarColorClass = p.avatarClass || getAvatarClass(index);
@@ -763,8 +752,8 @@
         </div>
         <div class="player-status-wrap">
           ${isMe ? `
-            <button type="button" class="btn-edit-inline-name" title="Change your name">
-              ✏️ Change Name
+            <button type="button" class="btn-edit-inline-name" title="Edit your name">
+              ✏️ Edit
             </button>
           ` : `
             <span class="player-status-tag ${p.isHost ? 'host' : 'ready'}">
@@ -775,14 +764,11 @@
       `;
 
       if (isMe) {
-        const editBtn = playerItem.querySelector('.btn-edit-inline-name');
-        if (editBtn) {
-          editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            Sound.click();
-            openNameModal();
-          });
-        }
+        playerItem.setAttribute('title', 'Click to edit your name & avatar');
+        playerItem.addEventListener('click', () => {
+          Sound.click();
+          openNameModal();
+        });
       }
 
       el.waitingPlayersContainer.appendChild(playerItem);
