@@ -32,8 +32,8 @@
   // ----------------------------------------------------------------------------
   const state = {
     currentScreen: 'intro',
-    playerName: localStorage.getItem('bingo_user_name') || 'USER',
-    playerAvatar: localStorage.getItem('bingo_user_avatar') || '🥷',
+    playerName: 'USER',
+    playerAvatar: '🥷',
     roomCode: 'B7K9Q2',
     boardSize: 5, // 5 or 7
     playerLimit: 2, // Default 2, or 3, 4
@@ -2483,7 +2483,6 @@
     if (newName) {
       const cleanName = newName.trim();
       state.playerName = cleanName;
-      localStorage.setItem('bingo_user_name', cleanName);
       if (el.headerUserName) el.headerUserName.textContent = cleanName;
       if (el.inputCreatorName) el.inputCreatorName.value = (cleanName !== 'USER' ? cleanName : '');
       if (el.inputJoinName) el.inputJoinName.value = (cleanName !== 'USER' ? cleanName : '');
@@ -2492,7 +2491,6 @@
 
     if (newAvatar) {
       state.playerAvatar = newAvatar;
-      localStorage.setItem('bingo_user_avatar', newAvatar);
       if (el.headerUserAvatar) el.headerUserAvatar.textContent = newAvatar;
       if (el.myProfileAvatarLetter) el.myProfileAvatarLetter.textContent = newAvatar;
     }
@@ -2533,9 +2531,8 @@
     const cleanCode = (code || '').trim().toUpperCase();
     if (!cleanCode) return;
 
-    const storedName = localStorage.getItem('bingo_user_name');
     const inputVal = el.inputJoinName ? el.inputJoinName.value.trim() : '';
-    let name = inputVal || storedName || 'USER';
+    let name = inputVal || 'USER';
     state.playerName = name;
 
     state.roomCode = cleanCode;
@@ -3139,7 +3136,6 @@
       const customName = el.inputCreatorName.value.trim();
       if (customName) {
         state.playerName = customName;
-        localStorage.setItem('bingo_user_name', state.playerName);
       } else if (!state.playerName) {
         state.playerName = 'USER';
       }
@@ -3223,9 +3219,8 @@
 
       if (name) {
         state.playerName = name;
-        localStorage.setItem('bingo_user_name', state.playerName);
       } else {
-        state.playerName = localStorage.getItem('bingo_user_name') || 'USER';
+        state.playerName = 'USER';
       }
 
       if (!code) {
@@ -3559,9 +3554,13 @@
     document.documentElement.setAttribute('data-theme', savedTheme);
     el.btnThemeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
 
-    // Ensure default name is always USER unless user saved a custom profile
-    state.playerName = localStorage.getItem('bingo_user_name') || 'USER';
-    state.playerAvatar = localStorage.getItem('bingo_user_avatar') || '🥷';
+    // Always reset to USER on game open as requested
+    try {
+      localStorage.removeItem('bingo_user_name');
+      localStorage.removeItem('bingo_user_avatar');
+    } catch (e) {}
+    state.playerName = 'USER';
+    state.playerAvatar = '🥷';
 
     // Initialize Host player
     state.players = [{
