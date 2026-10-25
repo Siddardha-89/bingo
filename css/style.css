@@ -5315,6 +5315,75 @@ body {
   }
 }
 
+/* ==========================================================================
+   PLAYER ARRIVAL & JOIN NOTIFICATION AESTHETICS
+   ========================================================================== */
+.player-item.player-connected-card {
+  animation: playerCardEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  box-shadow: 0 4px 18px rgba(168, 85, 247, 0.16);
+}
+
+@keyframes playerCardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Chat System Join Announcement Banner */
+.chat-system-banner.join-announcement {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.14) 0%, rgba(234, 179, 8, 0.12) 100%) !important;
+  border: 1px solid rgba(192, 132, 252, 0.35) !important;
+  color: var(--text-primary) !important;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.12);
+  animation: bannerGlowPulse 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes bannerGlowPulse {
+  0% {
+    box-shadow: 0 2px 10px rgba(168, 85, 247, 0.1);
+  }
+  100% {
+    box-shadow: 0 4px 18px rgba(168, 85, 247, 0.28);
+  }
+}
+
+/* High-priority Toast Notification Enhanced Glow */
+.toast-notification.show.toast-green {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.98)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.25) inset !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  padding: 12px 24px !important;
+  letter-spacing: 0.3px;
+  animation: toastBounceIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes toastBounceIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px) scale(0.92);
+  }
+  65% {
+    transform: translateX(-50%) translateY(-3px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+
 
 
 

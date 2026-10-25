@@ -11,10 +11,16 @@
   'use strict';
 
   // Generate or retrieve persistent player ID for this browser tab/session
-  let myPlayerId = sessionStorage.getItem('bingo_player_id');
+  // Use window.name so duplicate tabs / newly opened windows each get an isolated, unique player ID!
+  let tabId = window.name;
+  if (!tabId || !tabId.startsWith('bingo_tab_')) {
+    tabId = 'bingo_tab_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+    window.name = tabId;
+  }
+  let myPlayerId = sessionStorage.getItem('bingo_pid_' + tabId);
   if (!myPlayerId) {
-    myPlayerId = 'p_' + Math.random().toString(36).substring(2, 9);
-    sessionStorage.setItem('bingo_player_id', myPlayerId);
+    myPlayerId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+    sessionStorage.setItem('bingo_pid_' + tabId, myPlayerId);
   }
 
   // Message and move deduplication sets to prevent BroadcastChannel + MQTT double execution
@@ -71,6 +77,7 @@
   let mqttClient = null;
   let currentSubscribedTopic = null;
   let joinHeartbeatTimer = null;
+  const pendingMqttMessages = [];
 
   const BROKERS = [
     'wss://broker.emqx.io:8084/mqtt',
@@ -112,11 +119,27 @@
         if (state.roomCode) {
           subscribeToRoom(state.roomCode);
         }
+
+        // Flush any queued messages that were broadcast while connecting
+        while (pendingMqttMessages.length > 0) {
+          const item = pendingMqttMessages.shift();
+          try {
+            mqttClient.publish(item.topic, JSON.stringify(item.payload), { qos: 1 });
+          } catch (e) {
+            console.warn('Failed to flush queued MQTT message:', e);
+          }
+        }
+
+        // Re-announce presence on socket connect
+        if (!state.isHost && state.roomCode && state.currentScreen === 'waiting') {
+          broadcastJoinRequest();
+        } else if (state.isHost && state.roomCode && state.players.length > 0) {
+          broadcastRoomSync();
+        }
       });
 
       mqttClient.on('error', (err) => {
-        console.warn('MQTT connection error, trying alternate broker:', err);
-        currentBrokerIdx = (currentBrokerIdx + 1) % BROKERS.length;
+        console.warn('MQTT connection error:', err);
       });
 
       mqttClient.on('close', () => {
@@ -142,16 +165,17 @@
     const cleanCode = roomCode.trim().toUpperCase();
     const newTopic = `bingo_rooms_live/${cleanCode}`;
 
-    // Reset and sync chat for the active room
-    resetRoomChat(cleanCode);
-
+    // Only reset chat if actively changing to a different room
     if (currentSubscribedTopic && currentSubscribedTopic !== newTopic) {
+      resetRoomChat(cleanCode);
       try { mqttClient.unsubscribe(currentSubscribedTopic); } catch (e) {}
+    } else if (!currentSubscribedTopic) {
+      resetRoomChat(cleanCode);
     }
 
     currentSubscribedTopic = newTopic;
     if (mqttClient.connected) {
-      mqttClient.subscribe(newTopic, { qos: 0 }, (err) => {
+      mqttClient.subscribe(newTopic, { qos: 1 }, (err) => {
         if (!err) {
           console.log('Subscribed to room topic:', newTopic);
         }
@@ -629,8 +653,8 @@
 
     // Handle localhost, local files, and deployed origins
     if (isFile || !origin || origin === 'null') {
-      // Opened as local file
-      origin = `http://192.168.29.17:5501`;
+      // Opened as local file -> fallback to live deployed production URL
+      origin = 'https://bingo-royale-live.vercel.app';
     } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
       // Local server on laptop: substitute Wi-Fi IP and keep actual port
       origin = `http://192.168.29.17${port || ':5501'}`;
@@ -717,7 +741,7 @@
     state.players.forEach((p, index) => {
       const isMe = p.id === state.myPlayerId;
       const playerItem = document.createElement('div');
-      playerItem.className = 'player-item';
+      playerItem.className = 'player-item' + (!isMe ? ' player-connected-card' : '');
 
       const avatarLetter = (p.name[0] || 'U').toUpperCase();
       const avatarColorClass = p.avatarClass || getAvatarClass(index);
@@ -993,7 +1017,7 @@
     if (found && found.id && found.id !== state.myPlayerId) {
       console.log(`Auto-healing player ID from ${state.myPlayerId} to ${found.id} for player "${state.playerName}"`);
       state.myPlayerId = found.id;
-      sessionStorage.setItem('bingo_player_id', found.id);
+      sessionStorage.setItem('bingo_pid_' + tabId, found.id);
     }
   }
 
@@ -1858,14 +1882,81 @@
     }
 
     // 2. MQTT over WebSockets for cross-device mobile & laptop sync
+    const topic = `bingo_rooms_live/${state.roomCode.trim().toUpperCase()}`;
     if (mqttClient && mqttClient.connected) {
-      const topic = `bingo_rooms_live/${state.roomCode.trim().toUpperCase()}`;
       try {
-        mqttClient.publish(topic, JSON.stringify(payload));
+        mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
       } catch (e) {
         console.warn('MQTT publish error:', e);
+        pendingMqttMessages.push({ topic, payload });
       }
+    } else {
+      pendingMqttMessages.push({ topic, payload });
     }
+  }
+
+  // Celebratory joined notification message (Toast + Floating Mini Popup + Chat Announcement)
+  function showPlayerJoinedAlert(playerName, playerAvatar = '🎮') {
+    if (!playerName) return;
+
+    // 1. Play sound chime
+    Sound.join();
+
+    // 2. High-visibility Toast Notification
+    showToast(`🎉 ${playerAvatar} ${playerName} joined the room!`, 'toast-green');
+
+    // 3. Floating mini-message popup (Small friendly notification bubble)
+    showFloatingChatPopup({
+      senderAvatar: playerAvatar,
+      senderName: 'Room Alert',
+      text: `🎉 ${playerName} joined the room! Ready to play!`
+    });
+
+    // 4. Log in Room Chat system
+    if (state.roomCode) {
+      const systemChatMsg = {
+        id: 'sys_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        roomCode: state.roomCode,
+        senderId: 'system',
+        senderName: 'System',
+        senderAvatar: playerAvatar,
+        text: `🎉 ${playerName} has joined the room! Say hello! 👋`,
+        timestamp: Date.now(),
+        isMe: false,
+        isSystem: true
+      };
+      state.chatMessages.push(systemChatMsg);
+      renderSingleChatMessage(systemChatMsg);
+    }
+  }
+
+  function broadcastJoinRequest() {
+    if (!state.roomCode) return;
+    const myPlayerObj = {
+      id: state.myPlayerId,
+      name: state.playerName,
+      isHost: false,
+      isReady: true,
+      avatarEmoji: state.playerAvatar || '🥷',
+      avatarClass: 'avatar-g'
+    };
+    broadcastMessage({
+      type: 'PLAYER_JOINED',
+      roomCode: state.roomCode,
+      player: myPlayerObj
+    });
+  }
+
+  function broadcastRoomSync(joinedPlayer = null) {
+    if (!state.roomCode || !state.isHost) return;
+    broadcastMessage({
+      type: 'ROOM_SYNC',
+      roomCode: state.roomCode,
+      boardSize: state.boardSize,
+      playerLimit: state.playerLimit,
+      players: state.players,
+      joinedPlayer: joinedPlayer
+    });
   }
 
   function handleIncomingBroadcast(data) {
@@ -1887,49 +1978,91 @@
     if (data.type === 'PLAYER_JOINED') {
       const incoming = data.player;
       if (incoming && incoming.id !== state.myPlayerId) {
-        // Match existing player by ID or matching Name (handles mobile page refresh/reconnect)
-        const existingIdx = state.players.findIndex(p =>
-          p.id === incoming.id ||
-          (p.name && incoming.name && p.name.trim().toLowerCase() === incoming.name.trim().toLowerCase() && p.name.trim().toLowerCase() !== 'user' && p.name.trim().toLowerCase() !== 'player')
-        );
+        // If incoming player has default name that clashes with ours, assign a distinct name
+        if (incoming.name && state.playerName && incoming.name.trim().toLowerCase() === state.playerName.trim().toLowerCase()) {
+          incoming.name = 'Player ' + Math.floor(10 + Math.random() * 90);
+        }
+
+        const existingIdx = state.players.findIndex(p => p.id === incoming.id);
 
         if (existingIdx !== -1) {
           state.players[existingIdx] = incoming;
           renderWaitingRoom();
         } else if (state.players.length < state.playerLimit) {
           state.players.push(incoming);
-          Sound.join();
-          showToast(`🎉 ${incoming.name} joined the room!`, 'toast-green');
-          renderWaitingRoom();
+          showPlayerJoinedAlert(incoming.name, incoming.avatarEmoji || '🎮');
+
+          // If Host is still on the "Share Room" screen, automatically navigate into the Waiting Room!
+          if (state.currentScreen === 'share') {
+            showScreen('waiting');
+          } else {
+            renderWaitingRoom();
+          }
+        } else if (state.isHost) {
+          // Room is full, inform joiner
+          broadcastMessage({
+            type: 'ROOM_FULL',
+            roomCode: state.roomCode,
+            targetPlayerId: incoming.id
+          });
         }
 
         // Host always replies with full room state to synchronize joiner
         if (state.isHost) {
-          broadcastMessage({
-            type: 'ROOM_SYNC',
-            roomCode: state.roomCode,
-            boardSize: state.boardSize,
-            playerLimit: state.playerLimit,
-            players: state.players
-          });
+          broadcastRoomSync(incoming);
         }
       }
     }
 
     // Room synchronization packet
     else if (data.type === 'ROOM_SYNC') {
+      const prevCount = state.players.length;
       state.boardSize = data.boardSize;
       state.playerLimit = data.playerLimit;
+
       if (data.players && data.players.length > 0) {
-        state.players = data.players;
+        const hasMe = data.players.some(p => p.id === state.myPlayerId);
+        if (hasMe) {
+          state.players = data.players;
+        } else {
+          // Preserve our entry if host's packet didn't include us yet, and re-announce!
+          const myPlayer = state.players.find(p => p.id === state.myPlayerId);
+          state.players = [...data.players];
+          if (myPlayer) {
+            state.players.push(myPlayer);
+            broadcastJoinRequest();
+          }
+        }
       }
+
       healMyPlayerId();
-      // Stop mobile join retry heartbeat since room sync is confirmed
-      if (joinHeartbeatTimer) {
+
+      // Stop join retry heartbeat once host has confirmed our presence
+      if (joinHeartbeatTimer && state.players.some(p => p.id === state.myPlayerId && !p.isHost)) {
         clearInterval(joinHeartbeatTimer);
         joinHeartbeatTimer = null;
       }
+
       renderWaitingRoom();
+
+      // Show arrival / connection message on Joiner side!
+      if (!state.isHost && prevCount <= 1 && state.players.length >= 2) {
+        const hostPlayer = state.players.find(p => p.isHost) || state.players[0];
+        showPlayerJoinedAlert(`Connected with ${hostPlayer.name}!`, hostPlayer.avatarEmoji || '👑');
+      } else if (data.joinedPlayer && data.joinedPlayer.id !== state.myPlayerId) {
+        showPlayerJoinedAlert(data.joinedPlayer.name, data.joinedPlayer.avatarEmoji || '🎮');
+      }
+    }
+
+    // Room Full notification
+    else if (data.type === 'ROOM_FULL') {
+      if (data.targetPlayerId === state.myPlayerId) {
+        showToast('⚠️ Room is full! (Maximum players reached)', 'toast-yellow');
+        if (joinHeartbeatTimer) {
+          clearInterval(joinHeartbeatTimer);
+          joinHeartbeatTimer = null;
+        }
+      }
     }
 
     // A player updated their name/avatar in the room
@@ -1946,13 +2079,7 @@
 
         // Host relays updated room state to all members
         if (state.isHost) {
-          broadcastMessage({
-            type: 'ROOM_SYNC',
-            roomCode: state.roomCode,
-            boardSize: state.boardSize,
-            playerLimit: state.playerLimit,
-            players: state.players
-          });
+          broadcastRoomSync();
         }
       }
     }
@@ -2416,13 +2543,19 @@
   }
 
   function executeAutoJoin(code) {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode) return;
+
     const storedName = localStorage.getItem('bingo_user_name');
     const inputVal = el.inputJoinName ? el.inputJoinName.value.trim() : '';
-    let name = inputVal || storedName || state.playerName || 'Player';
+    let name = inputVal || storedName || state.playerName;
+    if (!name || name === 'USER' || name === 'Player') {
+      name = 'Player ' + Math.floor(10 + Math.random() * 90);
+    }
     state.playerName = name;
     localStorage.setItem('bingo_user_name', state.playerName);
 
-    state.roomCode = code;
+    state.roomCode = cleanCode;
     state.isHost = false;
 
     // Subscribe to room topic
@@ -2442,36 +2575,29 @@
     showScreen('waiting');
 
     // Broadcast join request
-    broadcastMessage({
-      type: 'PLAYER_JOINED',
-      roomCode: state.roomCode,
-      player: myPlayerObj
-    });
+    broadcastJoinRequest();
 
-    // Re-announce join until acknowledged by host
+    // Re-announce join every 1.5s until host acknowledges with room sync
     if (joinHeartbeatTimer) clearInterval(joinHeartbeatTimer);
     joinHeartbeatTimer = setInterval(() => {
-      if (state.currentScreen === 'waiting' && state.players.length <= 1 && !state.isHost) {
-        broadcastMessage({
-          type: 'PLAYER_JOINED',
-          roomCode: state.roomCode,
-          player: myPlayerObj
-        });
+      const hasOtherPlayers = state.players.some(p => p.id !== state.myPlayerId);
+      if (state.currentScreen === 'waiting' && !hasOtherPlayers && !state.isHost) {
+        broadcastJoinRequest();
       } else {
         clearInterval(joinHeartbeatTimer);
         joinHeartbeatTimer = null;
       }
-    }, 2000);
+    }, 1500);
 
-    showToast(`Joined Room ${code}! Connecting to host...`, 'toast-green');
+    showToast(`Joined Room ${cleanCode}! Connecting to host...`, 'toast-green');
 
-    // If player has default name 'Player', automatically open Name modal so they can set their real name!
-    if (!storedName || name === 'Player' || name.startsWith('Player')) {
+    // If player has default generated name, optionally open Name modal after 600ms
+    if (!storedName) {
       setTimeout(() => {
         if (state.currentScreen === 'waiting') {
           openNameModal();
         }
-      }, 500);
+      }, 600);
     }
   }
 
@@ -2652,11 +2778,19 @@
     if (!el.chatMessagesContainer) return;
 
     const row = document.createElement('div');
-    const rowClass = msg.isMe ? 'chat-msg-row me' : (msg.isBot ? 'chat-msg-row bot' : 'chat-msg-row friend');
-    row.className = rowClass;
-
     const timeStr = formatChatTime(msg.timestamp);
     const safeText = escapeHtml(msg.text);
+
+    if (msg.isSystem) {
+      row.className = 'chat-system-banner join-announcement';
+      row.innerHTML = `<span>${safeText}</span>`;
+      el.chatMessagesContainer.appendChild(row);
+      el.chatMessagesContainer.scrollTop = el.chatMessagesContainer.scrollHeight;
+      return;
+    }
+
+    const rowClass = msg.isMe ? 'chat-msg-row me' : (msg.isBot ? 'chat-msg-row bot' : 'chat-msg-row friend');
+    row.className = rowClass;
 
     if (msg.isMe) {
       row.innerHTML = `
@@ -3078,7 +3212,11 @@
       if (name) {
         state.playerName = name;
         localStorage.setItem('bingo_user_name', state.playerName);
+      } else if (!state.playerName || state.playerName === 'USER' || state.playerName === 'Player') {
+        state.playerName = 'Player ' + Math.floor(10 + Math.random() * 90);
+        localStorage.setItem('bingo_user_name', state.playerName);
       }
+
       if (!code) {
         showToast('Please enter a room code', 'toast-yellow');
         return;
@@ -3105,26 +3243,19 @@
       showScreen('waiting');
 
       // Broadcast join request to host and other tabs
-      broadcastMessage({
-        type: 'PLAYER_JOINED',
-        roomCode: state.roomCode,
-        player: myPlayerObj
-      });
+      broadcastJoinRequest();
 
-      // Keep re-announcing join every 2s until room sync is received from Host
+      // Keep re-announcing join every 1.5s until host syncs room
       if (joinHeartbeatTimer) clearInterval(joinHeartbeatTimer);
       joinHeartbeatTimer = setInterval(() => {
-        if (state.currentScreen === 'waiting' && state.players.length <= 1 && !state.isHost) {
-          broadcastMessage({
-            type: 'PLAYER_JOINED',
-            roomCode: state.roomCode,
-            player: myPlayerObj
-          });
+        const hasOtherPlayers = state.players.some(p => p.id !== state.myPlayerId);
+        if (state.currentScreen === 'waiting' && !hasOtherPlayers && !state.isHost) {
+          broadcastJoinRequest();
         } else {
           clearInterval(joinHeartbeatTimer);
           joinHeartbeatTimer = null;
         }
-      }, 2000);
+      }, 1500);
 
       showToast(`Joined Room ${code}! Connecting to host...`, 'toast-green');
     });
